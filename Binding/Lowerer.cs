@@ -50,7 +50,7 @@ internal sealed class Lowerer
             BoundLocalDeclaration d => LowerLocalDeclaration(d, lowerControlFlow),
             BoundWhileStatement w => LowerWhileStatement(w, lowerControlFlow),
             BoundReturnStatement r => LowerReturnStatement(r, lowerControlFlow),
-            BoundBlock b => LowerStatement(b, lowerControlFlow),
+            BoundBlock b => Lower(b, lowerControlFlow),
             _ => statement,
         };
     }
