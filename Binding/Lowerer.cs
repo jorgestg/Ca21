@@ -8,11 +8,16 @@ internal sealed class Lowerer
     public static BoundBlock Lower(BoundBlock block, bool lowerControlFlow)
     {
         ImmutableArray<BoundStatement>.Builder? statements = null;
-        foreach (var statement in block.Statements)
+        for (var i = 0; i < block.Statements.Length; i++)
         {
+            var statement = block.Statements[i];
             var loweredStatement = LowerStatement(statement, lowerControlFlow);
-            if (loweredStatement != statement)
-                statements ??= ImmutableArray.CreateBuilder<BoundStatement>();
+            if (loweredStatement != statement && statements == null)
+            {
+                statements = ImmutableArray.CreateBuilder<BoundStatement>();
+                for (var j = 0; j < i; j++)
+                    statements.Add(block.Statements[j]);
+            }
 
             statements?.Add(loweredStatement);
         }
@@ -29,16 +34,23 @@ internal sealed class Lowerer
 
         static void FlattenCore(BoundBlock block, ref ImmutableArray<BoundStatement>.Builder? statements)
         {
-            foreach (var statement in block.Statements)
+            for (var i = 0; i < block.Statements.Length; i++)
             {
-                if (statement is BoundBlock b)
+                var statement = block.Statements[i];
+                if (statement is not BoundBlock b)
                 {
-                    statements ??= ImmutableArray.CreateBuilder<BoundStatement>();
-                    FlattenCore(b, ref statements);
+                    statements?.Add(statement);
                     continue;
                 }
 
-                statements?.Add(statement);
+                if (statements == null)
+                {
+                    statements = ImmutableArray.CreateBuilder<BoundStatement>();
+                    for (var j = 0; j < i; j++)
+                        statements.Add(block.Statements[j]);
+                }
+
+                FlattenCore(b, ref statements);
             }
         }
     }
