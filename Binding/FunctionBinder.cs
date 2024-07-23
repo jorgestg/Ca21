@@ -12,7 +12,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
     {
         var boundBody = BindBlock(FunctionSymbol.Context.Body, diagnostics);
         var cfg = ControlFlowGraph.Create(boundBody);
-        if (!cfg.AllPathsReturn())
+        if (!cfg.AllPathsReturn() && FunctionSymbol.ReturnType != TypeSymbol.Unit)
         {
             diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
         }

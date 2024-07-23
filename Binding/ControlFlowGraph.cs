@@ -35,7 +35,7 @@ internal sealed class ControlFlowGraph
     {
         foreach (var edge in Exit.Incoming)
         {
-            var lastStatement = edge.From.Statements.Last();
+            var lastStatement = edge.From.Statements.LastOrDefault();
             if (lastStatement is not BoundReturnStatement)
                 return false;
         }
@@ -125,7 +125,7 @@ internal sealed class ControlFlowGraph
             }
         }
 
-        for (int i = 0; i < basicBlocks.Count; i++)
+        for (var i = 0; i < basicBlocks.Count; i++)
         {
             var basicBlock = basicBlocks[i];
             var nextBlock = i + 1 < basicBlocks.Count ? basicBlocks[i + 1] : exitBlock;
@@ -159,6 +159,25 @@ internal sealed class ControlFlowGraph
                     }
                 }
             }
+        }
+
+        // Remove unreachable blocks
+        for (var i = 0; i < basicBlocks.Count; i++)
+        {
+            var basicBlock = basicBlocks[i];
+            if (basicBlock.Incoming.Count > 0)
+                continue;
+
+            foreach (var edge in basicBlock.Outgoing)
+            {
+                edge.To.Incoming.Remove(edge);
+                edges.Remove(edge);
+            }
+
+            basicBlocks.Remove(basicBlock);
+
+            // Scan again because the collection changed
+            i = -1;
         }
 
         return new ControlFlowGraph(entryBlock, exitBlock, basicBlocks, edges);
