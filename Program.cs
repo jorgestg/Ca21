@@ -6,11 +6,16 @@ using Ca21.Symbols;
 
 const string source = """
     func main() int32 {
-        let mut n = 1;
-        while n < 100 {
-            n = n * 2;
-            return n;
+        let mut a = 0;
+        let mut b = 1;
+        let mut c = a + b;
+        while c <= 100 {
+            a = b;
+            b = c;
+            c = a + b;
         }
+
+        return c;
     }
     """;
 

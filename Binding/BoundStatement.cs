@@ -53,9 +53,9 @@ internal sealed class BoundWhileStatement(
     public LabelSymbol BreakLabel { get; } = breakLabel;
 }
 
-internal sealed class BoundReturnStatement(ParserRuleContext context, BoundExpression value) : BoundStatement(context)
+internal sealed class BoundReturnStatement(ParserRuleContext context, BoundExpression? value) : BoundStatement(context)
 {
-    public BoundExpression Value { get; } = value;
+    public BoundExpression? Value { get; } = value;
 }
 
 internal sealed class BoundBlock(ParserRuleContext context, ImmutableArray<BoundStatement> statements)

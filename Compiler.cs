@@ -223,8 +223,12 @@ internal sealed class Compiler
     private void CompileReturnStatement(BoundReturnStatement returnStatement)
     {
         _bodies.Write("return");
-        _bodies.Write(' ');
-        CompileExpression(returnStatement.Value);
+        if (returnStatement.Value != null)
+        {
+            _bodies.Write(' ');
+            CompileExpression(returnStatement.Value);
+        }
+
         _bodies.WriteLine(';');
     }
 }
