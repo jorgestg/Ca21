@@ -109,11 +109,17 @@ internal sealed class ControlFlowGraph
 
         if (basicBlocks.Count == 0)
         {
-            var edge = Connect(entryBlock, exitBlock);
             edges.Capacity = 1;
-            edges.Add(edge);
+            Connect(edges, entryBlock, exitBlock);
+
+            basicBlocks.Capacity = 2;
+            basicBlocks.Add(entryBlock);
+            basicBlocks.Add(exitBlock);
+
             return new ControlFlowGraph(entryBlock, exitBlock, basicBlocks, edges);
         }
+
+        Connect(edges, entryBlock, basicBlocks[0]);
 
         var labelToBlock = new Dictionary<LabelSymbol, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
@@ -127,36 +133,46 @@ internal sealed class ControlFlowGraph
 
         for (var i = 0; i < basicBlocks.Count; i++)
         {
-            var basicBlock = basicBlocks[i];
+            var currentBlock = basicBlocks[i];
             var nextBlock = i + 1 < basicBlocks.Count ? basicBlocks[i + 1] : exitBlock;
-            foreach (var statement in basicBlock.Statements)
+            for (var j = 0; j < currentBlock.Statements.Count; j++)
             {
+                var statement = currentBlock.Statements[j];
                 switch (statement)
                 {
                     case BoundConditionalGotoStatement conditionalGotoStatement:
                     {
                         var targetBlock = labelToBlock[conditionalGotoStatement.Target];
-                        var thenEdge = Connect(basicBlock, targetBlock);
-                        edges.Add(thenEdge);
-                        var elseEdge = Connect(basicBlock, nextBlock);
-                        edges.Add(elseEdge);
+                        Connect(edges, currentBlock, targetBlock);
+                        Connect(edges, currentBlock, nextBlock);
                         break;
                     }
 
                     case BoundReturnStatement:
                     {
-                        var edge = Connect(basicBlock, exitBlock);
-                        edges.Add(edge);
+                        Connect(edges, currentBlock, exitBlock);
                         break;
                     }
 
                     case BoundGotoStatement gotoStatement:
                     {
                         var targetBlock = labelToBlock[gotoStatement.Target];
-                        var edge = Connect(basicBlock, targetBlock);
-                        edges.Add(edge);
+                        Connect(edges, currentBlock, targetBlock);
                         break;
                     }
+
+                    case BoundLabelStatement:
+                    case BoundLocalDeclaration:
+                    case BoundExpressionStatement:
+                    {
+                        if (j == currentBlock.Statements.Count - 1)
+                            Connect(edges, currentBlock, nextBlock);
+
+                        break;
+                    }
+
+                    default:
+                        throw new UnreachableException();
                 }
             }
         }
@@ -180,14 +196,17 @@ internal sealed class ControlFlowGraph
             i = -1;
         }
 
+        basicBlocks.Insert(0, entryBlock);
+        basicBlocks.Add(exitBlock);
+
         return new ControlFlowGraph(entryBlock, exitBlock, basicBlocks, edges);
 
-        static BasicBlockEdge Connect(BasicBlock from, BasicBlock to)
+        static void Connect(List<BasicBlockEdge> edges, BasicBlock from, BasicBlock to)
         {
             var edge = new BasicBlockEdge(from, to);
             from.Outgoing.Add(edge);
             to.Incoming.Add(edge);
-            return edge;
+            edges.Add(edge);
         }
     }
 }
