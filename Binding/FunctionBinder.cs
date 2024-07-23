@@ -8,7 +8,17 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
     public override Binder Parent => throw new InvalidOperationException();
     public SourceFunctionSymbol FunctionSymbol { get; } = functionSymbol;
 
-    public BoundBlock BindBody(DiagnosticList diagnostics) => BindBlock(FunctionSymbol.Context.Body, diagnostics);
+    public BoundBlock BindBody(DiagnosticList diagnostics)
+    {
+        var boundBody = BindBlock(FunctionSymbol.Context.Body, diagnostics);
+        var cfg = ControlFlowGraph.Create(boundBody);
+        if (!cfg.AllPathsReturn())
+        {
+            diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
+        }
+
+        return boundBody;
+    }
 
     public override Symbol? Lookup(string name)
     {

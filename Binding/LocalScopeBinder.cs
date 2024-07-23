@@ -58,7 +58,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
     {
         var expression = BindExpression(context, diagnostics);
         if (expression is not BoundAssignmentExpression)
-            diagnostics.Add(context.SourceInterval, DiagnosticMessages.PureExpressionAsStatement);
+            diagnostics.Add(context, DiagnosticMessages.PureExpressionAsStatement);
 
         return new BoundExpressionStatement(context, expression);
     }
@@ -116,7 +116,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         var referencedSymbol = Lookup(context.Name.Text);
         if (referencedSymbol == null)
         {
-            diagnostics.Add(context.SourceInterval, DiagnosticMessages.NameNotFound(context.Name.Text));
+            diagnostics.Add(context, DiagnosticMessages.NameNotFound(context.Name.Text));
             referencedSymbol = Symbol.Missing;
         }
 
@@ -150,7 +150,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         if (!BoundBinaryOperator.TryBind(binaryOpKind, boundLeft.Type, out var boundOp))
         {
             diagnostics.Add(
-                context.SourceInterval,
+                context,
                 DiagnosticMessages.BinaryOperatorTypeMismatch(op.Text, boundLeft.Type, boundRight.Type)
             );
         }
@@ -167,13 +167,13 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         var value = BindExpression(context.Value, diagnostics);
         if (assignee is not BoundNameExpression name)
         {
-            diagnostics.Add(assignee.Context.SourceInterval, DiagnosticMessages.ExpressionIsNotAssignable);
+            diagnostics.Add(assignee.Context, DiagnosticMessages.ExpressionIsNotAssignable);
             return new BoundAssignmentExpression(context, Symbol.Missing, value);
         }
 
         if (name.ReferencedSymbol is not SourceLocalSymbol local)
         {
-            diagnostics.Add(assignee.Context.SourceInterval, DiagnosticMessages.SymbolIsNotAssignable);
+            diagnostics.Add(assignee.Context, DiagnosticMessages.SymbolIsNotAssignable);
             return new BoundAssignmentExpression(context, Symbol.Missing, value);
         }
 

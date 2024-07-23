@@ -49,6 +49,6 @@ internal abstract class Binder
         if (expected == TypeSymbol.BadType || actual == TypeSymbol.BadType)
             return;
 
-        diagnostics.Add(context.SourceInterval, DiagnosticMessages.TypeMismatch(expected, actual));
+        diagnostics.Add(context, DiagnosticMessages.TypeMismatch(expected, actual));
     }
 }

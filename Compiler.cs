@@ -40,17 +40,8 @@ internal sealed class Compiler
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
         var diagnostics = new DiagnosticList();
-        var block = functionSymbol.Binder.BindBody(diagnostics);
-        block = Lowerer.Lower(block, lowerControlFlow: false);
-
-        var cfg = ControlFlowGraph.Create(block);
-        if (!cfg.AllPathsReturn())
-        {
-            diagnostics.Add(
-                functionSymbol.Context.Identifier().SourceInterval,
-                DiagnosticMessages.AllCodePathsMustReturn
-            );
-        }
+        var body = functionSymbol.Binder.BindBody(diagnostics);
+        body = Lowerer.Lower(body, lowerControlFlow: false);
 
         if (diagnostics.Count > 0)
         {
@@ -64,7 +55,7 @@ internal sealed class Compiler
         CompileFunctionSignature(_bodies, functionSymbol);
         _bodies.Write(' ');
         _locals.Clear();
-        CompileBlock(block);
+        CompileBlock(body);
     }
 
     private static void CompileFunctionSignature(TextWriter writer, SourceFunctionSymbol functionSymbol)

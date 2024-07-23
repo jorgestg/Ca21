@@ -1,5 +1,5 @@
-using Antlr4.Runtime.Misc;
+using Ca21.Sources;
 
 namespace Ca21.Diagnostics;
 
-public record struct Diagnostic(Interval Position, string Message);
+public record struct Diagnostic(SourceSpan Position, string Message);
