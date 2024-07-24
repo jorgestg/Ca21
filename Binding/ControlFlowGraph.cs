@@ -124,56 +124,49 @@ internal sealed class ControlFlowGraph
         var labelToBlock = new Dictionary<LabelSymbol, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
         {
-            foreach (var statement in basicBlock.Statements)
-            {
-                if (statement is BoundLabelStatement labelStatement)
-                    labelToBlock.Add(labelStatement.Label, basicBlock);
-            }
+            var firstStatement = basicBlock.Statements.FirstOrDefault();
+            if (firstStatement is BoundLabelStatement labelStatement)
+                labelToBlock.Add(labelStatement.Label, basicBlock);
         }
 
         for (var i = 0; i < basicBlocks.Count; i++)
         {
             var currentBlock = basicBlocks[i];
             var nextBlock = i + 1 < basicBlocks.Count ? basicBlocks[i + 1] : exitBlock;
-            for (var j = 0; j < currentBlock.Statements.Count; j++)
+            var lastStatement = currentBlock.Statements[^1];
+            switch (lastStatement)
             {
-                var statement = currentBlock.Statements[j];
-                switch (statement)
+                case BoundConditionalGotoStatement conditionalGotoStatement:
                 {
-                    case BoundConditionalGotoStatement conditionalGotoStatement:
-                    {
-                        var targetBlock = labelToBlock[conditionalGotoStatement.Target];
-                        Connect(edges, currentBlock, targetBlock);
-                        Connect(edges, currentBlock, nextBlock);
-                        break;
-                    }
-
-                    case BoundReturnStatement:
-                    {
-                        Connect(edges, currentBlock, exitBlock);
-                        break;
-                    }
-
-                    case BoundGotoStatement gotoStatement:
-                    {
-                        var targetBlock = labelToBlock[gotoStatement.Target];
-                        Connect(edges, currentBlock, targetBlock);
-                        break;
-                    }
-
-                    case BoundLabelStatement:
-                    case BoundLocalDeclaration:
-                    case BoundExpressionStatement:
-                    {
-                        if (j == currentBlock.Statements.Count - 1)
-                            Connect(edges, currentBlock, nextBlock);
-
-                        break;
-                    }
-
-                    default:
-                        throw new UnreachableException();
+                    var targetBlock = labelToBlock[conditionalGotoStatement.Target];
+                    Connect(edges, currentBlock, targetBlock);
+                    Connect(edges, currentBlock, nextBlock);
+                    break;
                 }
+
+                case BoundReturnStatement:
+                {
+                    Connect(edges, currentBlock, exitBlock);
+                    break;
+                }
+
+                case BoundGotoStatement gotoStatement:
+                {
+                    var targetBlock = labelToBlock[gotoStatement.Target];
+                    Connect(edges, currentBlock, targetBlock);
+                    break;
+                }
+
+                case BoundLabelStatement:
+                case BoundLocalDeclaration:
+                case BoundExpressionStatement:
+                {
+                    Connect(edges, currentBlock, nextBlock);
+                    break;
+                }
+
+                default:
+                    throw new UnreachableException();
             }
         }
 
