@@ -140,10 +140,10 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
             Percentage => BoundBinaryOperatorKind.Remainder,
             Plus => BoundBinaryOperatorKind.Addition,
             Minus => BoundBinaryOperatorKind.Subtraction,
-            GreaterThan => BoundBinaryOperatorKind.GreaterThan,
-            GreaterThanOrEqual => BoundBinaryOperatorKind.GreaterThanOrEqual,
-            LessThan => BoundBinaryOperatorKind.LessThan,
-            LessThanOrEqual => BoundBinaryOperatorKind.LessThanOrEqual,
+            GreaterThan => BoundBinaryOperatorKind.Greater,
+            GreaterThanOrEqual => BoundBinaryOperatorKind.GreaterOrEqual,
+            LessThan => BoundBinaryOperatorKind.Less,
+            LessThanOrEqual => BoundBinaryOperatorKind.LessOrEqual,
             _ => throw new UnreachableException()
         };
 

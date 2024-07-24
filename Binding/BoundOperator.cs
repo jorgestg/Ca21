@@ -11,10 +11,10 @@ internal readonly struct BoundBinaryOperator
         new(BoundBinaryOperatorKind.Remainder, TypeSymbol.Int32, TypeSymbol.Int32),
         new(BoundBinaryOperatorKind.Addition, TypeSymbol.Int32, TypeSymbol.Int32),
         new(BoundBinaryOperatorKind.Subtraction, TypeSymbol.Int32, TypeSymbol.Int32),
-        new(BoundBinaryOperatorKind.GreaterThan, TypeSymbol.Int32, TypeSymbol.Bool),
-        new(BoundBinaryOperatorKind.GreaterThanOrEqual, TypeSymbol.Int32, TypeSymbol.Bool),
-        new(BoundBinaryOperatorKind.LessThan, TypeSymbol.Int32, TypeSymbol.Bool),
-        new(BoundBinaryOperatorKind.LessThanOrEqual, TypeSymbol.Int32, TypeSymbol.Bool)
+        new(BoundBinaryOperatorKind.Greater, TypeSymbol.Int32, TypeSymbol.Bool),
+        new(BoundBinaryOperatorKind.GreaterOrEqual, TypeSymbol.Int32, TypeSymbol.Bool),
+        new(BoundBinaryOperatorKind.Less, TypeSymbol.Int32, TypeSymbol.Bool),
+        new(BoundBinaryOperatorKind.LessOrEqual, TypeSymbol.Int32, TypeSymbol.Bool)
     ];
 
     private BoundBinaryOperator(BoundBinaryOperatorKind kind, TypeSymbol operandType, TypeSymbol resultType)
@@ -55,8 +55,8 @@ internal enum BoundBinaryOperatorKind
     Remainder,
     Addition,
     Subtraction,
-    GreaterThan,
-    GreaterThanOrEqual,
-    LessThan,
-    LessThanOrEqual
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual
 }

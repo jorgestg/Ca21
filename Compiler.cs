@@ -141,10 +141,10 @@ internal sealed class Compiler
                 BoundBinaryOperatorKind.Remainder => "%",
                 BoundBinaryOperatorKind.Addition => "+",
                 BoundBinaryOperatorKind.Subtraction => "-",
-                BoundBinaryOperatorKind.GreaterThan => ">",
-                BoundBinaryOperatorKind.GreaterThanOrEqual => ">=",
-                BoundBinaryOperatorKind.LessThan => "<",
-                BoundBinaryOperatorKind.LessThanOrEqual => "<=",
+                BoundBinaryOperatorKind.Greater => ">",
+                BoundBinaryOperatorKind.GreaterOrEqual => ">=",
+                BoundBinaryOperatorKind.Less => "<",
+                BoundBinaryOperatorKind.LessOrEqual => "<=",
                 _ => throw new UnreachableException()
             }
         );

@@ -8,6 +8,7 @@ internal abstract class BoundExpression(ParserRuleContext context)
 {
     public ParserRuleContext Context { get; } = context;
     public abstract TypeSymbol Type { get; }
+    public virtual BoundConstant ConstantValue => default;
 }
 
 internal sealed class BoundBlockExpression(
@@ -24,6 +25,7 @@ internal sealed class BoundBlockExpression(
 internal sealed class BoundLiteral(ParserRuleContext context, object value, TypeSymbol type) : BoundExpression(context)
 {
     public override TypeSymbol Type { get; } = type;
+    public override BoundConstant ConstantValue { get; } = new(value);
     public object Value { get; } = value;
 }
 
@@ -33,17 +35,27 @@ internal sealed class BoundNameExpression(ParserRuleContext context, Symbol refe
     public Symbol ReferencedSymbol { get; } = referencedSymbol;
 }
 
-internal sealed class BoundBinaryExpression(
-    ParserRuleContext context,
-    BoundExpression left,
-    BoundBinaryOperator @operator,
-    BoundExpression right
-) : BoundExpression(context)
+internal sealed class BoundBinaryExpression : BoundExpression
 {
+    public BoundBinaryExpression(
+        ParserRuleContext context,
+        BoundExpression left,
+        BoundBinaryOperator @operator,
+        BoundExpression right
+    )
+        : base(context)
+    {
+        Left = left;
+        Operator = @operator;
+        Right = right;
+        ConstantValue = ConstantFolding.Fold(this);
+    }
+
     public override TypeSymbol Type => Operator.ResultType;
-    public BoundExpression Left { get; } = left;
-    public BoundBinaryOperator Operator { get; } = @operator;
-    public BoundExpression Right { get; } = right;
+    public override BoundConstant ConstantValue { get; }
+    public BoundExpression Left { get; }
+    public BoundBinaryOperator Operator { get; }
+    public BoundExpression Right { get; }
 }
 
 internal sealed class BoundAssignmentExpression(ParserRuleContext context, Symbol assignee, BoundExpression value)
