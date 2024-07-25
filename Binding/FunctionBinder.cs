@@ -11,13 +11,15 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
     public BoundBlock BindBody(DiagnosticList diagnostics)
     {
         var boundBody = BindBlock(FunctionSymbol.Context.Body, diagnostics);
-        var cfg = ControlFlowGraph.Create(boundBody);
-        if (!cfg.AllPathsReturn() && FunctionSymbol.ReturnType != TypeSymbol.Unit)
-        {
-            diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
-        }
+        var loweredBody = Lowerer.Lower(boundBody);
+        if (FunctionSymbol.ReturnType == TypeSymbol.Unit)
+            return loweredBody;
 
-        return boundBody;
+        var cfg = ControlFlowGraph.Create(loweredBody);
+        if (!cfg.AllPathsReturn())
+            diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
+
+        return loweredBody;
     }
 
     public override Symbol? Lookup(string name)

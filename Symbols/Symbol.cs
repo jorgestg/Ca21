@@ -20,8 +20,6 @@ internal abstract class Symbol
     }
 }
 
-internal sealed class LabelSymbol;
-
 internal sealed class SourceFunctionSymbol : Symbol
 {
     public SourceFunctionSymbol(FunctionDefinitionContext context)
@@ -38,7 +36,23 @@ internal sealed class SourceFunctionSymbol : Symbol
     public TypeSymbol ReturnType => _returnType ??= Binder.BindType(Context.ReturnType);
 }
 
-internal sealed class SourceLocalSymbol(LocalDeclarationContext context, TypeSymbol type) : Symbol
+internal abstract class LocalSymbol : Symbol;
+
+internal sealed class LabelSymbol(ParserRuleContext context, string name) : LocalSymbol
+{
+    public override ParserRuleContext Context { get; } = context;
+    public override string Name { get; } = name;
+}
+
+internal sealed class SyntheticLocalSymbol(BoundExpression originalNode) : LocalSymbol
+{
+    public override ParserRuleContext Context => OriginalExpression.Context;
+    public override TypeSymbol Type => OriginalExpression.Type;
+    public override string Name => "tmp";
+    public BoundExpression OriginalExpression { get; } = originalNode;
+}
+
+internal sealed class SourceLocalSymbol(LocalDeclarationContext context, TypeSymbol type) : LocalSymbol
 {
     public override LocalDeclarationContext Context { get; } = context;
     public override string Name => Context.Name.Text;

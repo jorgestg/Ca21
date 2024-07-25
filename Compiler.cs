@@ -10,9 +10,8 @@ namespace Ca21;
 internal sealed class Compiler
 {
     private readonly List<Diagnostic> _diagnostics = new();
-    private readonly List<SourceLocalSymbol> _locals = new();
-    private readonly StringWriter _forwardDeclarations = new();
-    private readonly IndentedTextWriter _bodies = new(new StringWriter());
+    private readonly List<LocalSymbol> _locals = new();
+    private readonly IndentedTextWriter _writer = new(new StringWriter());
 
     public ImmutableArray<Diagnostic> Diagnostics { get; private set; }
 
@@ -26,9 +25,8 @@ internal sealed class Compiler
 
     public override string ToString()
     {
-        _forwardDeclarations.WriteLine();
-        _forwardDeclarations.WriteLine(_bodies.InnerWriter.ToString());
-        return _forwardDeclarations.ToString();
+        var stringWriter = (StringWriter)_writer.InnerWriter;
+        return stringWriter.ToString();
     }
 
     private void AddDiagnosticsToBag(DiagnosticList diagnostics)
@@ -37,77 +35,184 @@ internal sealed class Compiler
             _diagnostics.Add(diagnostic);
     }
 
+    private void CompileName(string name)
+    {
+        _writer.Write('$');
+        _writer.Write(name);
+    }
+
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
         var diagnostics = new DiagnosticList();
         var body = functionSymbol.Binder.BindBody(diagnostics);
-        body = Lowerer.Lower(body, lowerControlFlow: false);
-
         if (diagnostics.Count > 0)
         {
             AddDiagnosticsToBag(diagnostics);
             return;
         }
 
-        CompileFunctionSignature(_forwardDeclarations, functionSymbol);
-        _forwardDeclarations.WriteLine(';');
-
-        CompileFunctionSignature(_bodies, functionSymbol);
-        _bodies.Write(' ');
+        _writer.Write("export");
+        _writer.Write(' ');
+        _writer.Write("function");
+        _writer.Write(' ');
+        CompileType(functionSymbol.ReturnType);
+        _writer.Write(' ');
+        CompileName(functionSymbol.Name);
+        _writer.Write('(');
+        _writer.Write(')');
+        _writer.Write(' ');
         _locals.Clear();
         CompileBlock(body);
+        _locals.Clear();
     }
 
-    private static void CompileFunctionSignature(TextWriter writer, SourceFunctionSymbol functionSymbol)
+    private void CompileType(TypeSymbol typeSymbol)
     {
-        CompileType(writer, functionSymbol.ReturnType);
-        writer.Write(' ');
-        writer.Write(functionSymbol.Name);
-        writer.Write('(');
-        writer.Write(')');
-    }
+        if (typeSymbol == TypeSymbol.Int32)
+            _writer.Write('w');
 
-    private static void CompileType(TextWriter writer, TypeSymbol typeSymbol)
-    {
-        writer.Write(typeSymbol.Name);
+        if (typeSymbol == TypeSymbol.Bool)
+            _writer.Write('b');
+
+        if (typeSymbol == TypeSymbol.Unit)
+            return;
     }
 
     private void CompileBlock(BoundBlock block)
     {
-        _bodies.WriteLine('{');
-        _bodies.Indent++;
+        _writer.WriteLine('{');
+        _writer.WriteLine("@start");
+        _writer.Indent++;
 
         foreach (var statement in block.Statements)
             CompileStatement(statement);
 
-        _bodies.Indent--;
-        _bodies.WriteLine('}');
+        _writer.Indent--;
+        _writer.WriteLine('}');
     }
 
-    private void CompileExpression(BoundExpression expression)
+    private void CompileStatement(BoundStatement statement)
     {
-        switch (expression)
+        switch (statement)
         {
-            case BoundLiteral l:
-                CompileLiteral(l);
+            case BoundNopStatement:
                 break;
-            case BoundNameExpression n:
-                CompileNameExpression(n);
+            case BoundLabelDeclarationStatement labelDeclaration:
+                CompileLabelStatement(labelDeclaration);
                 break;
-            case BoundBinaryExpression b:
-                CompileBinaryExpression(b);
+            case BoundGotoStatement @goto:
+                CompileGotoStatement(@goto);
                 break;
-            case BoundAssignmentExpression a:
-                CompileAssignmentExpression(a);
+            case BoundConditionalGotoStatement conditionalGoto:
+                CompileConditionalGotoStatement(conditionalGoto);
+                break;
+            case BoundLocalDeclaration localDeclaration:
+                CompileLocalDeclaration(localDeclaration);
+                break;
+            case BoundReturnStatement returnStatement:
+                CompileReturnStatement(returnStatement);
+                break;
+            case BoundBlock block:
+                CompileBlock(block);
+                break;
+            case BoundExpressionStatement expressionStatement:
+                CompileExpression(expressionStatement.Expression);
+                _writer.WriteLine();
                 break;
             default:
                 throw new UnreachableException();
         }
     }
 
-    private void CompileLiteral(BoundLiteral literal)
+    private void CompileLabelStatement(BoundLabelDeclarationStatement declaration)
     {
-        _bodies.Write(literal.Value);
+        if (!_locals.Contains(declaration.Label))
+            _locals.Add(declaration.Label);
+
+        _writer.Indent--;
+        CompileSymbolReference(declaration.Label);
+        _writer.WriteLine();
+        _writer.Indent++;
+    }
+
+    private void CompileGotoStatement(BoundGotoStatement @goto)
+    {
+        if (!_locals.Contains(@goto.Target))
+            _locals.Add(@goto.Target);
+
+        _writer.Write("jmp");
+        _writer.Write(' ');
+        CompileSymbolReference(@goto.Target);
+        _writer.WriteLine();
+    }
+
+    private void CompileConditionalGotoStatement(BoundConditionalGotoStatement conditionalGoto)
+    {
+        if (!_locals.Contains(conditionalGoto.Then))
+            _locals.Add(conditionalGoto.Then);
+
+        if (!_locals.Contains(conditionalGoto.Otherwise))
+            _locals.Add(conditionalGoto.Otherwise);
+
+        _writer.Write("jnz");
+        _writer.Write(' ');
+        CompileExpression(conditionalGoto.Condition);
+        _writer.Write(' ');
+        CompileSymbolReference(conditionalGoto.Then);
+        _writer.Write(' ');
+        CompileSymbolReference(conditionalGoto.Otherwise);
+        _writer.WriteLine();
+    }
+
+    private void CompileLocalDeclaration(BoundLocalDeclaration declaration)
+    {
+        _locals.Add(declaration.Local);
+
+        CompileSymbolReference(declaration.Local);
+        _writer.Write(' ');
+        _writer.Write('=');
+        CompileType(declaration.Local.Type);
+        _writer.Write(' ');
+        CompileExpression(declaration.Initializer);
+        _writer.WriteLine();
+    }
+
+    private void CompileReturnStatement(BoundReturnStatement returnStatement)
+    {
+        _writer.Write("ret");
+        if (returnStatement.Value != null)
+        {
+            _writer.Write(' ');
+            CompileExpression(returnStatement.Value);
+        }
+
+        _writer.WriteLine();
+    }
+
+    private void CompileExpression(BoundExpression expression)
+    {
+        switch (expression)
+        {
+            case BoundLiteralExpression literal:
+                CompileLiteral(literal);
+                break;
+            case BoundNameExpression name:
+                CompileNameExpression(name);
+                break;
+            case BoundBinaryExpression binaryExpression:
+                CompileBinaryExpression(binaryExpression);
+                break;
+            case BoundAssignmentExpression assignment:
+                CompileAssignmentExpression(assignment);
+                break;
+            default:
+                throw new UnreachableException();
+        }
+    }
+
+    private void CompileLiteral(BoundLiteralExpression literal)
+    {
+        _writer.Write(literal.Value);
     }
 
     private void CompileNameExpression(BoundNameExpression name)
@@ -117,118 +222,57 @@ internal sealed class Compiler
 
     private void CompileSymbolReference(Symbol symbol)
     {
-        if (symbol is SourceLocalSymbol local)
+        switch (symbol)
         {
-            _bodies.Write(local.Name);
-            _bodies.Write('_');
-            _bodies.Write(_locals.IndexOf(local));
-        }
-        else
-        {
-            _bodies.Write(symbol.Name);
+            case LabelSymbol label:
+                _writer.Write('@');
+                _writer.Write(symbol.Name);
+                _writer.Write('_');
+                _writer.Write(_locals.IndexOf(label));
+                break;
+            case LocalSymbol local:
+                _writer.Write('%');
+                _writer.Write(symbol.Name);
+                _writer.Write('_');
+                _writer.Write(_locals.IndexOf(local));
+                break;
+            default:
+                _writer.Write('$');
+                _writer.Write(symbol.Name);
+                break;
         }
     }
 
     private void CompileBinaryExpression(BoundBinaryExpression binaryExpression)
     {
-        CompileExpression(binaryExpression.Left);
-        _bodies.Write(' ');
-        _bodies.Write(
+        _writer.Write(
             binaryExpression.Operator.Kind switch
             {
-                BoundBinaryOperatorKind.Multiplication => "*",
-                BoundBinaryOperatorKind.Division => "/",
-                BoundBinaryOperatorKind.Remainder => "%",
-                BoundBinaryOperatorKind.Addition => "+",
-                BoundBinaryOperatorKind.Subtraction => "-",
-                BoundBinaryOperatorKind.Greater => ">",
-                BoundBinaryOperatorKind.GreaterOrEqual => ">=",
-                BoundBinaryOperatorKind.Less => "<",
-                BoundBinaryOperatorKind.LessOrEqual => "<=",
+                BoundBinaryOperatorKind.Multiplication => "mul",
+                BoundBinaryOperatorKind.Division => "div",
+                BoundBinaryOperatorKind.Remainder => "rem",
+                BoundBinaryOperatorKind.Addition => "add",
+                BoundBinaryOperatorKind.Subtraction => "sub",
+                BoundBinaryOperatorKind.Greater => "sgt",
+                BoundBinaryOperatorKind.GreaterOrEqual => "sge",
+                BoundBinaryOperatorKind.Less => "slt",
+                BoundBinaryOperatorKind.LessOrEqual => "sle",
                 _ => throw new UnreachableException()
             }
         );
 
-        _bodies.Write(' ');
+        _writer.Write(' ');
+        CompileExpression(binaryExpression.Left);
+        _writer.Write(' ');
         CompileExpression(binaryExpression.Right);
     }
 
     private void CompileAssignmentExpression(BoundAssignmentExpression assignment)
     {
         CompileSymbolReference(assignment.Assignee);
-        _bodies.Write(' ');
-        _bodies.Write('=');
-        _bodies.Write(' ');
+        _writer.Write(' ');
+        _writer.Write('=');
+        _writer.Write(' ');
         CompileExpression(assignment.Value);
-    }
-
-    private void CompileStatement(BoundStatement statement)
-    {
-        switch (statement)
-        {
-            case BoundLocalDeclaration d:
-                CompileLocalDeclaration(d);
-                break;
-            case BoundWhileStatement w:
-                CompileWhileLoop(w);
-                break;
-            case BoundReturnStatement r:
-                CompileReturnStatement(r);
-                break;
-            case BoundBlock b:
-                CompileBlock(b);
-                break;
-            case BoundExpressionStatement e:
-                CompileExpression(e.Expression);
-                _bodies.WriteLine(';');
-                break;
-            default:
-                throw new UnreachableException();
-        }
-    }
-
-    private void CompileLocalDeclaration(BoundLocalDeclaration declaration)
-    {
-        _locals.Add(declaration.Local);
-
-        if (!declaration.Local.IsMutable)
-        {
-            _bodies.Write("const");
-            _bodies.Write(' ');
-        }
-
-        CompileType(_bodies, declaration.Local.Type);
-        _bodies.Write(' ');
-        _bodies.Write(declaration.Local.Name);
-        _bodies.Write('_');
-        _bodies.Write(_locals.Count - 1);
-        _bodies.Write(' ');
-        _bodies.Write('=');
-        _bodies.Write(' ');
-        CompileExpression(declaration.Initializer);
-        _bodies.WriteLine(';');
-    }
-
-    private void CompileWhileLoop(BoundWhileStatement whileLoop)
-    {
-        _bodies.Write("while");
-        _bodies.Write(' ');
-        _bodies.Write('(');
-        CompileExpression(whileLoop.Condition);
-        _bodies.Write(')');
-        _bodies.Write(' ');
-        CompileBlock(whileLoop.Body);
-    }
-
-    private void CompileReturnStatement(BoundReturnStatement returnStatement)
-    {
-        _bodies.Write("return");
-        if (returnStatement.Value != null)
-        {
-            _bodies.Write(' ');
-            CompileExpression(returnStatement.Value);
-        }
-
-        _bodies.WriteLine(';');
     }
 }

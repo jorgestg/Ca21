@@ -45,8 +45,7 @@ internal sealed class ControlFlowGraph
 
     public static ControlFlowGraph Create(BoundBlock block)
     {
-        var loweredBlock = Lowerer.Lower(block, lowerControlFlow: true);
-        var basicBlocks = CreateBasicBlocks(loweredBlock);
+        var basicBlocks = CreateBasicBlocks(block);
         return ConnectBlocks(basicBlocks);
     }
 
@@ -59,7 +58,7 @@ internal sealed class ControlFlowGraph
             switch (statement)
             {
                 // Labels start new basic blocks
-                case BoundLabelStatement:
+                case BoundLabelDeclarationStatement:
                 {
                     if (statements.Count > 0)
                     {
@@ -125,7 +124,7 @@ internal sealed class ControlFlowGraph
         foreach (var basicBlock in basicBlocks)
         {
             var firstStatement = basicBlock.Statements.FirstOrDefault();
-            if (firstStatement is BoundLabelStatement labelStatement)
+            if (firstStatement is BoundLabelDeclarationStatement labelStatement)
                 labelToBlock.Add(labelStatement.Label, basicBlock);
         }
 
@@ -138,7 +137,7 @@ internal sealed class ControlFlowGraph
             {
                 case BoundConditionalGotoStatement conditionalGotoStatement:
                 {
-                    var targetBlock = labelToBlock[conditionalGotoStatement.Target];
+                    var targetBlock = labelToBlock[conditionalGotoStatement.Then];
                     Connect(edges, currentBlock, targetBlock);
                     Connect(edges, currentBlock, nextBlock);
                     break;
@@ -157,7 +156,7 @@ internal sealed class ControlFlowGraph
                     break;
                 }
 
-                case BoundLabelStatement:
+                case BoundLabelDeclarationStatement:
                 case BoundLocalDeclaration:
                 case BoundExpressionStatement:
                 {

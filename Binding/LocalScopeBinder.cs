@@ -44,7 +44,13 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         var condition = BindExpression(context.Condition, diagnostics);
         TypeCheck(context, TypeSymbol.Bool, condition.Type, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
-        return new BoundWhileStatement(context, condition, body, new LabelSymbol(), new LabelSymbol());
+        return new BoundWhileStatement(
+            context,
+            condition,
+            body,
+            new LabelSymbol(context, "continue"),
+            new LabelSymbol(context, "break")
+        );
     }
 
     private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)
@@ -98,7 +104,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         };
     }
 
-    private static BoundLiteral BindLiteral(LiteralContext context, DiagnosticList diagnostics)
+    private static BoundLiteralExpression BindLiteral(LiteralContext context, DiagnosticList diagnostics)
     {
         (object value, TypeSymbol type) = context switch
         {
@@ -108,7 +114,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
             _ => throw new UnreachableException()
         };
 
-        return new BoundLiteral(context, value, type);
+        return new BoundLiteralExpression(context, value, type);
     }
 
     private BoundNameExpression BindNameExpression(NameExpressionContext context, DiagnosticList diagnostics)

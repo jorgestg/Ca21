@@ -1,20 +1,21 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
 internal sealed class Lowerer
 {
-    public static BoundBlock Lower(BoundBlock block, bool lowerControlFlow)
+    public static BoundBlock Lower(BoundBlock block)
     {
         ImmutableArray<BoundStatement>.Builder? statements = null;
         for (var i = 0; i < block.Statements.Length; i++)
         {
             var statement = block.Statements[i];
-            var loweredStatement = LowerStatement(statement, lowerControlFlow);
+            var loweredStatement = LowerStatement(statement);
             if (loweredStatement != statement && statements == null)
             {
-                statements = ImmutableArray.CreateBuilder<BoundStatement>();
+                statements = ImmutableArray.CreateBuilder<BoundStatement>(block.Statements.Length);
                 for (var j = 0; j < i; j++)
                     statements.Add(block.Statements[j]);
             }
@@ -22,7 +23,7 @@ internal sealed class Lowerer
             statements?.Add(loweredStatement);
         }
 
-        var result = statements == null ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
+        var result = statements == null ? block : new BoundBlock(block.Context, statements.MoveToImmutable());
         return Flatten(result);
     }
 
@@ -55,54 +56,41 @@ internal sealed class Lowerer
         }
     }
 
-    private static BoundStatement LowerStatement(BoundStatement statement, bool lowerControlFlow)
+    private static BoundStatement LowerStatement(BoundStatement statement)
     {
         return statement switch
         {
-            BoundLocalDeclaration d => LowerLocalDeclaration(d, lowerControlFlow),
-            BoundWhileStatement w => LowerWhileStatement(w, lowerControlFlow),
-            BoundReturnStatement r => LowerReturnStatement(r, lowerControlFlow),
-            BoundBlock b => Lower(b, lowerControlFlow),
+            BoundBlock b => Lower(b),
+            BoundLocalDeclaration d => LowerLocalDeclaration(d),
+            BoundWhileStatement w => LowerWhileStatement(w),
+            BoundReturnStatement r => LowerReturnStatement(r),
             _ => statement,
         };
     }
 
-    private static BoundStatement LowerLocalDeclaration(BoundLocalDeclaration localDeclaration, bool lowerControlFlow)
+    private static BoundStatement LowerLocalDeclaration(BoundLocalDeclaration localDeclaration)
     {
-        if (localDeclaration.Initializer is not BoundBlockExpression block)
-            return localDeclaration;
-
-        var statements = ImmutableArray.CreateBuilder<BoundStatement>(block.Statements.Length + 1);
-        foreach (var statement in block.Statements)
+        var loweredInitializer = LowerExpression(localDeclaration.Initializer);
+        if (loweredInitializer is BoundBlockExpression blockExpression)
         {
-            var loweredStatement = LowerStatement(statement, lowerControlFlow);
-            statements.Add(loweredStatement);
-        }
-
-        statements.Add(
-            new BoundLocalDeclaration(localDeclaration.Context, localDeclaration.Local, block.TailExpression!)
-        );
-
-        return new BoundBlock(localDeclaration.Context, statements.MoveToImmutable());
-    }
-
-    private static BoundStatement LowerWhileStatement(BoundWhileStatement whileStatement, bool lowerControlFlow)
-    {
-        if (!lowerControlFlow)
-        {
-            var loweredBody = Lower(whileStatement.Body, lowerControlFlow);
-            if (loweredBody == whileStatement.Body)
-                return whileStatement;
-
-            return new BoundWhileStatement(
-                whileStatement.Context,
-                whileStatement.Condition,
-                loweredBody,
-                whileStatement.ContinueLabel,
-                whileStatement.BreakLabel
+            return LowerBlockExpression(
+                localDeclaration,
+                blockExpression,
+                static (originalStatement, tail) =>
+                {
+                    var localDeclaration = (BoundLocalDeclaration)originalStatement;
+                    return new BoundLocalDeclaration(localDeclaration.Context, localDeclaration.Local, tail);
+                }
             );
         }
 
+        return loweredInitializer == localDeclaration.Initializer
+            ? localDeclaration
+            : new BoundLocalDeclaration(localDeclaration.Context, localDeclaration.Local, loweredInitializer);
+    }
+
+    private static BoundBlock LowerWhileStatement(BoundWhileStatement whileStatement)
+    {
         // goto continue
         // body:
         //   <body>
@@ -113,34 +101,62 @@ internal sealed class Lowerer
         var statements = ImmutableArray.CreateBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 5);
         statements.Add(new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel));
 
-        var bodyLabel = new LabelSymbol();
-        statements.Add(new BoundLabelStatement(whileStatement.Context, bodyLabel));
+        var bodyLabel = new LabelSymbol(whileStatement.Body.Context, "body");
+        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, bodyLabel));
 
         foreach (var statement in whileStatement.Body.Statements)
         {
-            var loweredStatement = LowerStatement(statement, lowerControlFlow);
+            var loweredStatement = LowerStatement(statement);
             statements.Add(loweredStatement);
         }
 
-        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.ContinueLabel));
-        statements.Add(new BoundConditionalGotoStatement(whileStatement.Context, whileStatement.Condition, bodyLabel));
-        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.BreakLabel));
+        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, whileStatement.ContinueLabel));
+        statements.Add(
+            new BoundConditionalGotoStatement(
+                whileStatement.Context,
+                whileStatement.Condition,
+                bodyLabel,
+                whileStatement.BreakLabel
+            )
+        );
+
+        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, whileStatement.BreakLabel));
         return new BoundBlock(whileStatement.Context, statements.MoveToImmutable());
     }
 
-    private static BoundStatement LowerReturnStatement(BoundReturnStatement returnStatement, bool lowerControlFlow)
+    private static BoundStatement LowerReturnStatement(BoundReturnStatement returnStatement)
     {
-        if (returnStatement.Value is not BoundBlockExpression block)
-            return returnStatement;
-
-        var statements = ImmutableArray.CreateBuilder<BoundStatement>(block.Statements.Length + 1);
-        foreach (var statement in block.Statements)
+        var loweredValue = returnStatement.Value == null ? null : LowerExpression(returnStatement.Value);
+        if (loweredValue is BoundBlockExpression blockExpression)
         {
-            var loweredStatement = LowerStatement(statement, lowerControlFlow);
-            statements.Add(loweredStatement);
+            return LowerBlockExpression(
+                returnStatement,
+                blockExpression,
+                static (originalStatement, tail) => new BoundReturnStatement(originalStatement.Context, tail)
+            );
         }
 
-        statements.Add(new BoundReturnStatement(returnStatement.Context, block.TailExpression!));
-        return new BoundBlock(returnStatement.Context, statements.MoveToImmutable());
+        return loweredValue == returnStatement.Value
+            ? returnStatement
+            : new BoundReturnStatement(returnStatement.Context, loweredValue);
+    }
+
+    private static BoundBlock LowerBlockExpression(
+        BoundStatement originalStatement,
+        BoundBlockExpression blockExpression,
+        Func<BoundStatement, BoundExpression, BoundStatement> statementFactory
+    )
+    {
+        Debug.Assert(blockExpression.TailExpression != null);
+        var tail = LowerExpression(blockExpression.TailExpression!);
+        var statement = statementFactory(originalStatement, tail);
+        return new BoundBlock(originalStatement.Context, [.. blockExpression.Statements, statement]);
+    }
+
+    private static BoundExpression LowerExpression(BoundExpression expression)
+    {
+        return expression.ConstantValue.HasValue
+            ? new BoundLiteralExpression(expression.Context, expression.ConstantValue.Value, expression.Type)
+            : expression;
     }
 }

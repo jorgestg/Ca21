@@ -22,7 +22,8 @@ internal sealed class BoundBlockExpression(
     public BoundExpression? TailExpression { get; } = tailExpression;
 }
 
-internal sealed class BoundLiteral(ParserRuleContext context, object value, TypeSymbol type) : BoundExpression(context)
+internal sealed class BoundLiteralExpression(ParserRuleContext context, object value, TypeSymbol type)
+    : BoundExpression(context)
 {
     public override TypeSymbol Type { get; } = type;
     public override BoundConstant ConstantValue { get; } = new(value);

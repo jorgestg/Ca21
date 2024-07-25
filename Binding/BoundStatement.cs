@@ -9,7 +9,10 @@ internal abstract class BoundStatement(ParserRuleContext context)
     public ParserRuleContext Context { get; } = context;
 }
 
-internal sealed class BoundLabelStatement(ParserRuleContext context, LabelSymbol target) : BoundStatement(context)
+internal sealed class BoundNopStatement(ParserRuleContext context) : BoundStatement(context);
+
+internal sealed class BoundLabelDeclarationStatement(ParserRuleContext context, LabelSymbol target)
+    : BoundStatement(context)
 {
     public LabelSymbol Label { get; } = target;
 }
@@ -22,20 +25,19 @@ internal sealed class BoundGotoStatement(ParserRuleContext context, LabelSymbol 
 internal sealed class BoundConditionalGotoStatement(
     ParserRuleContext context,
     BoundExpression condition,
-    LabelSymbol target
+    LabelSymbol then,
+    LabelSymbol otherwise
 ) : BoundStatement(context)
 {
     public BoundExpression Condition { get; } = condition;
-    public LabelSymbol Target { get; } = target;
+    public LabelSymbol Then { get; } = then;
+    public LabelSymbol Otherwise { get; } = otherwise;
 }
 
-internal sealed class BoundLocalDeclaration(
-    ParserRuleContext context,
-    SourceLocalSymbol local,
-    BoundExpression initializer
-) : BoundStatement(context)
+internal sealed class BoundLocalDeclaration(ParserRuleContext context, LocalSymbol local, BoundExpression initializer)
+    : BoundStatement(context)
 {
-    public SourceLocalSymbol Local { get; } = local;
+    public LocalSymbol Local { get; } = local;
     public BoundExpression Initializer { get; } = initializer;
 }
 
