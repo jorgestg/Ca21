@@ -11,10 +11,16 @@ internal abstract class BoundStatement(ParserRuleContext context)
 
 internal sealed class BoundNopStatement(ParserRuleContext context) : BoundStatement(context);
 
-internal sealed class BoundLabelDeclarationStatement(ParserRuleContext context, LabelSymbol target)
+internal sealed class BoundStructureStartStatement(ParserRuleContext context, LabelSymbol label, bool isLoop = false)
     : BoundStatement(context)
 {
-    public LabelSymbol Label { get; } = target;
+    public LabelSymbol Label { get; } = label;
+    public bool IsLoop { get; } = isLoop;
+}
+
+internal sealed class BoundStructureEndStatement(ParserRuleContext context, LabelSymbol label) : BoundStatement(context)
+{
+    public LabelSymbol Label { get; } = label;
 }
 
 internal sealed class BoundGotoStatement(ParserRuleContext context, LabelSymbol target) : BoundStatement(context)
@@ -25,20 +31,20 @@ internal sealed class BoundGotoStatement(ParserRuleContext context, LabelSymbol 
 internal sealed class BoundConditionalGotoStatement(
     ParserRuleContext context,
     BoundExpression condition,
-    LabelSymbol then,
-    LabelSymbol otherwise
+    LabelSymbol taget,
+    bool branchIfFalse = false
 ) : BoundStatement(context)
 {
     public BoundExpression Condition { get; } = condition;
-    public LabelSymbol Then { get; } = then;
-    public LabelSymbol Otherwise { get; } = otherwise;
+    public LabelSymbol Target { get; } = taget;
+    public bool BranchIfFalse { get; } = branchIfFalse;
 }
 
-internal sealed class BoundLocalDeclaration(ParserRuleContext context, LocalSymbol local, BoundExpression initializer)
+internal sealed class BoundLocalDeclaration(ParserRuleContext context, LocalSymbol local, BoundExpression? initializer)
     : BoundStatement(context)
 {
     public LocalSymbol Local { get; } = local;
-    public BoundExpression Initializer { get; } = initializer;
+    public BoundExpression? Initializer { get; } = initializer;
 }
 
 internal sealed class BoundWhileStatement(

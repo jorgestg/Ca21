@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
-using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
@@ -70,7 +68,9 @@ internal sealed class Lowerer
 
     private static BoundStatement LowerLocalDeclaration(BoundLocalDeclaration localDeclaration)
     {
-        var loweredInitializer = LowerExpression(localDeclaration.Initializer);
+        var loweredInitializer =
+            localDeclaration.Initializer == null ? null : LowerExpression(localDeclaration.Initializer);
+
         if (loweredInitializer is BoundBlockExpression blockExpression)
         {
             return LowerBlockExpression(
@@ -89,20 +89,38 @@ internal sealed class Lowerer
             : new BoundLocalDeclaration(localDeclaration.Context, localDeclaration.Local, loweredInitializer);
     }
 
-    private static BoundBlock LowerWhileStatement(BoundWhileStatement whileStatement)
+    private static BoundStatement LowerWhileStatement(BoundWhileStatement whileStatement)
     {
-        // goto continue
-        // body:
-        //   <body>
-        // continue:
-        //   jumpIfTrue <condition> body
-        // break:
-        //   ...
-        var statements = ImmutableArray.CreateBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 5);
-        statements.Add(new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel));
+        var loweredCondition = LowerExpression(whileStatement.Condition);
+        if (loweredCondition.ConstantValue.HasValue && (bool)loweredCondition.ConstantValue.Value == false)
+            return new BoundNopStatement(whileStatement.Context);
 
-        var bodyLabel = new LabelSymbol(whileStatement.Body.Context, "body");
-        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, bodyLabel));
+        // block $break
+        //   loop $loop
+        //     <check>
+        //     br.false $break
+        //     <code>
+        //     br $loop
+        //   end
+        // end
+        var statements = ImmutableArray.CreateBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 6);
+        var breakLabel = new BoundStructureStartStatement(whileStatement.Context, whileStatement.BreakLabel);
+        var loopLabel = new BoundStructureStartStatement(
+            whileStatement.Context,
+            whileStatement.ContinueLabel,
+            isLoop: true
+        );
+
+        var check = new BoundConditionalGotoStatement(
+            whileStatement.Context,
+            whileStatement.Condition,
+            whileStatement.BreakLabel,
+            branchIfFalse: true
+        );
+
+        statements.Add(breakLabel);
+        statements.Add(loopLabel);
+        statements.Add(check);
 
         foreach (var statement in whileStatement.Body.Statements)
         {
@@ -110,17 +128,13 @@ internal sealed class Lowerer
             statements.Add(loweredStatement);
         }
 
-        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, whileStatement.ContinueLabel));
-        statements.Add(
-            new BoundConditionalGotoStatement(
-                whileStatement.Context,
-                whileStatement.Condition,
-                bodyLabel,
-                whileStatement.BreakLabel
-            )
-        );
+        var gotoLoop = new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel);
+        var loopEnd = new BoundStructureEndStatement(whileStatement.Context, whileStatement.ContinueLabel);
+        var exitEnd = new BoundStructureEndStatement(whileStatement.Context, whileStatement.BreakLabel);
+        statements.Add(gotoLoop);
+        statements.Add(loopEnd);
+        statements.Add(exitEnd);
 
-        statements.Add(new BoundLabelDeclarationStatement(whileStatement.Context, whileStatement.BreakLabel));
         return new BoundBlock(whileStatement.Context, statements.MoveToImmutable());
     }
 
@@ -144,11 +158,10 @@ internal sealed class Lowerer
     private static BoundBlock LowerBlockExpression(
         BoundStatement originalStatement,
         BoundBlockExpression blockExpression,
-        Func<BoundStatement, BoundExpression, BoundStatement> statementFactory
+        Func<BoundStatement, BoundExpression?, BoundStatement> statementFactory
     )
     {
-        Debug.Assert(blockExpression.TailExpression != null);
-        var tail = LowerExpression(blockExpression.TailExpression!);
+        var tail = blockExpression.TailExpression == null ? null : LowerExpression(blockExpression.TailExpression);
         var statement = statementFactory(originalStatement, tail);
         return new BoundBlock(originalStatement.Context, [.. blockExpression.Statements, statement]);
     }

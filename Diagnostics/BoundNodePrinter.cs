@@ -20,7 +20,7 @@ internal sealed class BoundNodePrinter(TextWriter writer)
     {
         switch (node)
         {
-            case BoundLabelDeclarationStatement n:
+            case BoundStructureStartStatement n:
                 WalkLabelStatement(n);
                 break;
             case BoundGotoStatement n:
@@ -114,10 +114,13 @@ internal sealed class BoundNodePrinter(TextWriter writer)
         _writer.Write('=');
         _writer.WriteLine(node.Local.Name);
 
-        _writer.Write(nameof(node.Initializer));
-        _writer.Write('=');
-        WalkExpression(node.Initializer);
-        _writer.WriteLine();
+        if (node.Initializer != null)
+        {
+            _writer.Write(nameof(node.Initializer));
+            _writer.Write('=');
+            WalkExpression(node.Initializer);
+            _writer.WriteLine();
+        }
 
         _writer.Indent--;
         _writer.WriteLine('}');
@@ -138,9 +141,9 @@ internal sealed class BoundNodePrinter(TextWriter writer)
         _writer.WriteLine(nameof(BoundGotoStatement));
     }
 
-    private void WalkLabelStatement(BoundLabelDeclarationStatement node)
+    private void WalkLabelStatement(BoundStructureStartStatement node)
     {
-        _writer.WriteLine(nameof(BoundLabelDeclarationStatement));
+        _writer.WriteLine(nameof(BoundStructureStartStatement));
     }
 
     private void WalkExpression(BoundExpression node)

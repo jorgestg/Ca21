@@ -38,18 +38,9 @@ internal sealed class SourceFunctionSymbol : Symbol
 
 internal abstract class LocalSymbol : Symbol;
 
-internal sealed class LabelSymbol(ParserRuleContext context, string name) : LocalSymbol
+internal sealed class LabelSymbol(ParserRuleContext context)
 {
-    public override ParserRuleContext Context { get; } = context;
-    public override string Name { get; } = name;
-}
-
-internal sealed class SyntheticLocalSymbol(BoundExpression originalNode) : LocalSymbol
-{
-    public override ParserRuleContext Context => OriginalExpression.Context;
-    public override TypeSymbol Type => OriginalExpression.Type;
-    public override string Name => "tmp";
-    public BoundExpression OriginalExpression { get; } = originalNode;
+    public ParserRuleContext Context { get; } = context;
 }
 
 internal sealed class SourceLocalSymbol(LocalDeclarationContext context, TypeSymbol type) : LocalSymbol
