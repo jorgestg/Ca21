@@ -6,22 +6,23 @@ internal sealed class Lowerer
 {
     public static BoundBlock Lower(BoundBlock block)
     {
-        ImmutableArray<BoundStatement>.Builder? statements = null;
+        ArrayBuilder<BoundStatement> statements = default;
         for (var i = 0; i < block.Statements.Length; i++)
         {
             var statement = block.Statements[i];
             var loweredStatement = LowerStatement(statement);
-            if (loweredStatement != statement && statements == null)
+            if (loweredStatement != statement && statements.IsDefault)
             {
-                statements = ImmutableArray.CreateBuilder<BoundStatement>(block.Statements.Length);
+                statements = new ArrayBuilder<BoundStatement>(block.Statements.Length);
                 for (var j = 0; j < i; j++)
                     statements.Add(block.Statements[j]);
             }
 
-            statements?.Add(loweredStatement);
+            if (!statements.IsDefault)
+                statements.Add(loweredStatement);
         }
 
-        var result = statements == null ? block : new BoundBlock(block.Context, statements.MoveToImmutable());
+        var result = statements.IsDefault ? block : new BoundBlock(block.Context, statements.MoveToImmutable());
         return Flatten(result);
     }
 
@@ -103,23 +104,23 @@ internal sealed class Lowerer
         //     br $loop
         //   end
         // end
-        var statements = ImmutableArray.CreateBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 6);
-        var breakLabel = new BoundStructureStartStatement(whileStatement.Context, whileStatement.BreakLabel);
-        var loopLabel = new BoundStructureStartStatement(
+        var statements = new ArrayBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 6);
+        var breakBlock = new BoundControlBlockStartStatement(whileStatement.Context, whileStatement.BreakIdentifier);
+        var loopBlock = new BoundControlBlockStartStatement(
             whileStatement.Context,
-            whileStatement.ContinueLabel,
+            whileStatement.ContinueIdentifier,
             isLoop: true
         );
 
         var check = new BoundConditionalGotoStatement(
             whileStatement.Context,
             whileStatement.Condition,
-            whileStatement.BreakLabel,
+            whileStatement.BreakIdentifier,
             branchIfFalse: true
         );
 
-        statements.Add(breakLabel);
-        statements.Add(loopLabel);
+        statements.Add(breakBlock);
+        statements.Add(loopBlock);
         statements.Add(check);
 
         foreach (var statement in whileStatement.Body.Statements)
@@ -128,9 +129,9 @@ internal sealed class Lowerer
             statements.Add(loweredStatement);
         }
 
-        var gotoLoop = new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel);
-        var loopEnd = new BoundStructureEndStatement(whileStatement.Context, whileStatement.ContinueLabel);
-        var exitEnd = new BoundStructureEndStatement(whileStatement.Context, whileStatement.BreakLabel);
+        var gotoLoop = new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueIdentifier);
+        var loopEnd = new BoundControlBlockEndStatement(whileStatement.Context, whileStatement.ContinueIdentifier);
+        var exitEnd = new BoundControlBlockEndStatement(whileStatement.Context, whileStatement.BreakIdentifier);
         statements.Add(gotoLoop);
         statements.Add(loopEnd);
         statements.Add(exitEnd);

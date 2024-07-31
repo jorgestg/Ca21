@@ -44,7 +44,9 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         var condition = BindExpression(context.Condition, diagnostics);
         TypeCheck(context, TypeSymbol.Bool, condition.Type, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
-        return new BoundWhileStatement(context, condition, body, new LabelSymbol(context), new LabelSymbol(context));
+        var continueIdentifier = new ControlBlockIdentifier("loop");
+        var breakIdentifier = new ControlBlockIdentifier("break");
+        return new BoundWhileStatement(context, condition, body, continueIdentifier, breakIdentifier);
     }
 
     private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)

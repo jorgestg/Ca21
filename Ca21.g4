@@ -2,7 +2,7 @@ grammar Ca21;
 
 // Parser
 compilationUnit
-    : Function=functionDefinition EOF
+    : Functions+=functionDefinition EOF
     ;
 
 functionDefinition

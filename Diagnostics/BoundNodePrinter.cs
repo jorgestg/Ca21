@@ -20,11 +20,11 @@ internal sealed class BoundNodePrinter(TextWriter writer)
     {
         switch (node)
         {
-            case BoundStructureStartStatement:
-                WalkStructureStartStatement();
+            case BoundControlBlockStartStatement n:
+                WalkControlBlockStartStatement(n);
                 break;
-            case BoundStructureEndStatement:
-                WalkStructureEndStatement();
+            case BoundControlBlockEndStatement n:
+                WalkControlBlockEndStatement(n);
                 break;
             case BoundGotoStatement n:
                 WalkGotoStatement(n);
@@ -133,25 +133,51 @@ internal sealed class BoundNodePrinter(TextWriter writer)
     {
         _writer.Write(nameof(BoundConditionalGotoStatement));
         _writer.Write(' ');
+        _writer.Write('@');
+        _writer.Write(node.Target.Name);
+        _writer.Write(' ');
+        _writer.WriteLine('{');
+        _writer.Indent++;
+
         _writer.Write(nameof(node.Condition));
         _writer.Write('=');
         WalkExpression(node.Condition);
         _writer.WriteLine();
+
+        _writer.Write(nameof(node.BranchIfFalse));
+        _writer.Write('=');
+        _writer.WriteLine(node.BranchIfFalse);
+
+        _writer.Indent--;
+        _writer.WriteLine('}');
     }
 
     private void WalkGotoStatement(BoundGotoStatement node)
     {
-        _writer.WriteLine(nameof(BoundGotoStatement));
+        _writer.Write(nameof(BoundGotoStatement));
+        _writer.Write(' ');
+        _writer.Write('@');
+        _writer.WriteLine(node.Target.Name);
     }
 
-    private void WalkStructureStartStatement()
+    private void WalkControlBlockStartStatement(BoundControlBlockStartStatement node)
     {
-        _writer.WriteLine(nameof(BoundStructureStartStatement));
+        _writer.Write(nameof(BoundControlBlockStartStatement));
+        _writer.Write(' ');
+        _writer.Write('@');
+        _writer.Write(node.ControlBlockIdentifier.Name);
+        _writer.Write(' ');
+        _writer.Write(nameof(node.IsLoop));
+        _writer.Write('=');
+        _writer.WriteLine(node.IsLoop);
     }
 
-    private void WalkStructureEndStatement()
+    private void WalkControlBlockEndStatement(BoundControlBlockEndStatement node)
     {
-        _writer.WriteLine(nameof(BoundStructureEndStatement));
+        _writer.Write(nameof(BoundControlBlockEndStatement));
+        _writer.Write(' ');
+        _writer.Write('@');
+        _writer.WriteLine(node.ControlBlockIdentifier.Name);
     }
 
     private void WalkExpression(BoundExpression node)

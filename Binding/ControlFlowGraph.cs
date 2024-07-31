@@ -57,7 +57,7 @@ internal sealed class ControlFlowGraph
         {
             switch (statement)
             {
-                case BoundStructureStartStatement:
+                case BoundControlBlockStartStatement:
                 {
                     if (statements.Count > 0)
                     {
@@ -84,7 +84,7 @@ internal sealed class ControlFlowGraph
                     break;
                 }
 
-                case BoundStructureEndStatement:
+                case BoundControlBlockEndStatement:
                 case BoundExpressionStatement:
                 case BoundLocalDeclaration:
                 {
@@ -120,12 +120,12 @@ internal sealed class ControlFlowGraph
 
         Connect(edges, entryBlock, basicBlocks[0]);
 
-        var labelToBlock = new Dictionary<LabelSymbol, BasicBlock>();
+        var idToBasicBlock = new Dictionary<ControlBlockIdentifier, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
         {
             var firstStatement = basicBlock.Statements.FirstOrDefault();
-            if (firstStatement is BoundStructureStartStatement labelStatement)
-                labelToBlock.Add(labelStatement.Label, basicBlock);
+            if (firstStatement is BoundControlBlockStartStatement controlBlockStart)
+                idToBasicBlock.Add(controlBlockStart.ControlBlockIdentifier, basicBlock);
         }
 
         for (var i = 0; i < basicBlocks.Count; i++)
@@ -137,7 +137,7 @@ internal sealed class ControlFlowGraph
             {
                 case BoundConditionalGotoStatement conditionalGotoStatement:
                 {
-                    var targetBlock = labelToBlock[conditionalGotoStatement.Target];
+                    var targetBlock = idToBasicBlock[conditionalGotoStatement.Target];
                     Connect(edges, currentBlock, targetBlock);
                     Connect(edges, currentBlock, nextBlock);
                     break;
@@ -151,12 +151,12 @@ internal sealed class ControlFlowGraph
 
                 case BoundGotoStatement gotoStatement:
                 {
-                    var targetBlock = labelToBlock[gotoStatement.Target];
+                    var targetBlock = idToBasicBlock[gotoStatement.Target];
                     Connect(edges, currentBlock, targetBlock);
                     break;
                 }
 
-                case BoundStructureStartStatement:
+                case BoundControlBlockStartStatement:
                 case BoundLocalDeclaration:
                 case BoundExpressionStatement:
                 {

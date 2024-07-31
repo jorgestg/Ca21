@@ -25,8 +25,8 @@ SourceTextMap.Register(charStream, sourceText);
 
 var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
 var compilationUnit = parser.compilationUnit();
-var main = new SourceFunctionSymbol(compilationUnit.Function);
-var compiler = Compiler.Compile(main);
+var module = new ModuleSymbol(compilationUnit);
+var compiler = Compiler.Compile((SourceFunctionSymbol)module.Functions.First());
 if (compiler.Diagnostics.Any())
 {
     Console.ForegroundColor = ConsoleColor.DarkRed;

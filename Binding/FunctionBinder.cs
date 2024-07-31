@@ -5,7 +5,7 @@ namespace Ca21.Binding;
 
 internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Binder
 {
-    public override Binder Parent => throw new InvalidOperationException();
+    public override Binder Parent => FunctionSymbol.Module.Binder;
     public SourceFunctionSymbol FunctionSymbol { get; } = functionSymbol;
 
     public BoundBlock BindBody(DiagnosticList diagnostics)
@@ -20,11 +20,6 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
             diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
 
         return loweredBody;
-    }
-
-    public override Symbol? Lookup(string name)
-    {
-        return null;
     }
 
     public override TypeSymbol GetReturnType()

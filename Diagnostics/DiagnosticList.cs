@@ -1,22 +1,68 @@
-using System.Collections;
+using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Ca21.Diagnostics;
 
-public readonly struct DiagnosticList() : IEnumerable<Diagnostic>, IReadOnlyList<Diagnostic>
+public sealed class DiagnosticList
 {
-    public static readonly DiagnosticList Empty = new();
+    private Diagnostic[]? _diagnostics;
+    private int _count;
 
-    private readonly List<Diagnostic> _diagnostics = [];
+    public int Count => _count;
+    public int Capacity => _diagnostics?.Length ?? 0;
 
-    public int Count => _diagnostics.Count;
+    public Diagnostic this[int index]
+    {
+        get
+        {
+            if (_diagnostics == null || index < 0 || index >= _count)
+                throw new ArgumentOutOfRangeException(nameof(index));
 
-    public Diagnostic this[int index] => _diagnostics[index];
+            return _diagnostics[index];
+        }
+        set
+        {
+            if (_diagnostics == null || index < 0 || index >= _count)
+                throw new ArgumentOutOfRangeException(nameof(index));
 
-    public void Add(Diagnostic diagnostic) => _diagnostics.Add(diagnostic);
+            _diagnostics[index] = value;
+        }
+    }
 
-    IEnumerator<Diagnostic> IEnumerable<Diagnostic>.GetEnumerator() => _diagnostics.GetEnumerator();
+    public bool Any() => _count > 0;
 
-    IEnumerator IEnumerable.GetEnumerator() => _diagnostics.GetEnumerator();
+    public void Add(Diagnostic item)
+    {
+        if (_count == Capacity)
+            Resize(Capacity == 0 ? 4 : Capacity * 2);
 
-    public List<Diagnostic>.Enumerator GetEnumerator() => _diagnostics.GetEnumerator();
+        _diagnostics![_count++] = item;
+    }
+
+    public ImmutableArray<Diagnostic> DrainToImmutable()
+    {
+        if (_diagnostics == null)
+            return [];
+
+        if (_count == Capacity)
+            return ImmutableCollectionsMarshal.AsImmutableArray(_diagnostics);
+
+        return ImmutableArray.Create(_diagnostics.AsSpan(0, _count));
+    }
+
+    private void Resize(int newCapacity)
+    {
+        var newArray = new Diagnostic[newCapacity];
+        Array.Resize(ref _diagnostics, _count);
+        _diagnostics = newArray;
+    }
+
+    public void CopyTo(ICollection<Diagnostic> other)
+    {
+        if (_diagnostics == null)
+            return;
+
+        for (var i = 0; i < _count; i++)
+            other.Add(_diagnostics[i]);
+    }
 }

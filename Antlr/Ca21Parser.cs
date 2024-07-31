@@ -97,7 +97,8 @@ public partial class Ca21Parser : Parser {
 	}
 
 	public partial class CompilationUnitContext : ParserRuleContext {
-		public FunctionDefinitionContext Function;
+		public FunctionDefinitionContext _functionDefinition;
+		public IList<FunctionDefinitionContext> _Functions = new List<FunctionDefinitionContext>();
 		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode Eof() { return GetToken(Ca21Parser.Eof, 0); }
 		[System.Diagnostics.DebuggerNonUserCode] public FunctionDefinitionContext functionDefinition() {
 			return GetRuleContext<FunctionDefinitionContext>(0);
@@ -117,7 +118,8 @@ public partial class Ca21Parser : Parser {
 			EnterOuterAlt(_localctx, 1);
 			{
 			State = 20;
-			_localctx.Function = functionDefinition();
+			_localctx._functionDefinition = functionDefinition();
+			_localctx._Functions.Add(_localctx._functionDefinition);
 			State = 21;
 			Match(Eof);
 			}

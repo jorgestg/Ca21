@@ -11,7 +11,7 @@ internal sealed class Compiler
 {
     private readonly List<Diagnostic> _diagnostics = new();
     private readonly List<LocalSymbol> _locals = new(8);
-    private readonly Stack<LabelSymbol> _structures = new(8);
+    private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
     private readonly IndentedTextWriter _writer = new(new StringWriter());
 
     public ImmutableArray<Diagnostic> Diagnostics { get; private set; }
@@ -40,11 +40,9 @@ internal sealed class Compiler
     {
         var diagnostics = new DiagnosticList();
         var body = functionSymbol.Binder.BindBody(diagnostics);
-        if (diagnostics.Count > 0)
+        if (diagnostics.Any())
         {
-            foreach (var diagnostic in diagnostics)
-                _diagnostics.Add(diagnostic);
-
+            diagnostics.CopyTo(_diagnostics);
             return;
         }
 
@@ -111,10 +109,10 @@ internal sealed class Compiler
         {
             case BoundNopStatement:
                 break;
-            case BoundStructureStartStatement structureStart:
+            case BoundControlBlockStartStatement structureStart:
                 CompileStructureStartStatement(structureStart);
                 break;
-            case BoundStructureEndStatement structureEnd:
+            case BoundControlBlockEndStatement structureEnd:
                 CompileStructureEndStatement(structureEnd);
                 break;
             case BoundGotoStatement @goto:
@@ -140,9 +138,9 @@ internal sealed class Compiler
         }
     }
 
-    private void CompileStructureStartStatement(BoundStructureStartStatement structureStart)
+    private void CompileStructureStartStatement(BoundControlBlockStartStatement structureStart)
     {
-        _structures.Push(structureStart.Label);
+        _controlBlocks.Push(structureStart.ControlBlockIdentifier);
 
         if (structureStart.IsLoop)
             _writer.WriteLine("loop");
@@ -152,9 +150,9 @@ internal sealed class Compiler
         _writer.Indent++;
     }
 
-    private void CompileStructureEndStatement(BoundStructureEndStatement structureEnd)
+    private void CompileStructureEndStatement(BoundControlBlockEndStatement structureEnd)
     {
-        _structures.Pop();
+        _controlBlocks.Pop();
 
         _writer.Indent--;
         _writer.WriteLine("end");
@@ -163,15 +161,15 @@ internal sealed class Compiler
     private void CompileGotoStatement(BoundGotoStatement @goto)
     {
         _writer.Write("br ");
-        _writer.WriteLine(GetLabelRelativeDepth(@goto.Target));
+        _writer.WriteLine(GetControlBlockRelativeDepth(@goto.Target));
     }
 
-    private int GetLabelRelativeDepth(LabelSymbol label)
+    private int GetControlBlockRelativeDepth(ControlBlockIdentifier identifier)
     {
         var depth = 0;
-        foreach (var structure in _structures)
+        foreach (var structure in _controlBlocks)
         {
-            if (structure == label)
+            if (structure == identifier)
                 break;
 
             depth++;
@@ -187,7 +185,7 @@ internal sealed class Compiler
             _writer.WriteLine("i32.eqz");
 
         _writer.Write("br_if ");
-        _writer.WriteLine(GetLabelRelativeDepth(conditionalGoto.Target));
+        _writer.WriteLine(GetControlBlockRelativeDepth(conditionalGoto.Target));
     }
 
     private void CompileLocalDeclarationStatement(BoundLocalDeclaration localDeclaration)

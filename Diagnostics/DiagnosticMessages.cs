@@ -20,4 +20,6 @@ internal static class DiagnosticMessages
     public static string NameIsImmutable(string name) => $"`{name}` is immutable";
 
     public const string AllCodePathsMustReturn = "Not all code paths return a value";
+
+    public static string NameIsAlreadyDefined(string name) => $"`{name}` is already defined";
 }

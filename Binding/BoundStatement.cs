@@ -9,34 +9,46 @@ internal abstract class BoundStatement(ParserRuleContext context)
     public ParserRuleContext Context { get; } = context;
 }
 
+internal sealed class ControlBlockIdentifier(string name)
+{
+    public string Name { get; } = name;
+}
+
 internal sealed class BoundNopStatement(ParserRuleContext context) : BoundStatement(context);
 
-internal sealed class BoundStructureStartStatement(ParserRuleContext context, LabelSymbol label, bool isLoop = false)
-    : BoundStatement(context)
+internal sealed class BoundControlBlockStartStatement(
+    ParserRuleContext context,
+    ControlBlockIdentifier controlBlockIdentifier,
+    bool isLoop = false
+) : BoundStatement(context)
 {
-    public LabelSymbol Label { get; } = label;
+    public ControlBlockIdentifier ControlBlockIdentifier { get; } = controlBlockIdentifier;
     public bool IsLoop { get; } = isLoop;
 }
 
-internal sealed class BoundStructureEndStatement(ParserRuleContext context, LabelSymbol label) : BoundStatement(context)
+internal sealed class BoundControlBlockEndStatement(
+    ParserRuleContext context,
+    ControlBlockIdentifier controlBlockIdentifier
+) : BoundStatement(context)
 {
-    public LabelSymbol Label { get; } = label;
+    public ControlBlockIdentifier ControlBlockIdentifier { get; } = controlBlockIdentifier;
 }
 
-internal sealed class BoundGotoStatement(ParserRuleContext context, LabelSymbol target) : BoundStatement(context)
+internal sealed class BoundGotoStatement(ParserRuleContext context, ControlBlockIdentifier target)
+    : BoundStatement(context)
 {
-    public LabelSymbol Target { get; } = target;
+    public ControlBlockIdentifier Target { get; } = target;
 }
 
 internal sealed class BoundConditionalGotoStatement(
     ParserRuleContext context,
     BoundExpression condition,
-    LabelSymbol taget,
+    ControlBlockIdentifier taget,
     bool branchIfFalse = false
 ) : BoundStatement(context)
 {
     public BoundExpression Condition { get; } = condition;
-    public LabelSymbol Target { get; } = taget;
+    public ControlBlockIdentifier Target { get; } = taget;
     public bool BranchIfFalse { get; } = branchIfFalse;
 }
 
@@ -51,14 +63,14 @@ internal sealed class BoundWhileStatement(
     ParserRuleContext context,
     BoundExpression condition,
     BoundBlock body,
-    LabelSymbol continueLabel,
-    LabelSymbol breakLabel
+    ControlBlockIdentifier continueIdentifier,
+    ControlBlockIdentifier breakIdentifier
 ) : BoundStatement(context)
 {
     public BoundExpression Condition { get; } = condition;
     public BoundBlock Body { get; } = body;
-    public LabelSymbol ContinueLabel { get; } = continueLabel;
-    public LabelSymbol BreakLabel { get; } = breakLabel;
+    public ControlBlockIdentifier ContinueIdentifier { get; } = continueIdentifier;
+    public ControlBlockIdentifier BreakIdentifier { get; } = breakIdentifier;
 }
 
 internal sealed class BoundReturnStatement(ParserRuleContext context, BoundExpression? value) : BoundStatement(context)
