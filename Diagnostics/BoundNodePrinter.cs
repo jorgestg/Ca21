@@ -193,6 +193,9 @@ internal sealed class BoundNodePrinter(TextWriter writer)
             case BoundNameExpression n:
                 WalkNameExpression(n);
                 break;
+            case BoundCallExpression n:
+                WalkCallExpression(n);
+                break;
             case BoundBinaryExpression n:
                 WalkBinaryExpression(n);
                 break;
@@ -244,6 +247,21 @@ internal sealed class BoundNodePrinter(TextWriter writer)
         _writer.Write('=');
         WalkExpression(node.Right);
         _writer.WriteLine();
+
+        _writer.Indent--;
+        _writer.Write('}');
+    }
+
+    private void WalkCallExpression(BoundCallExpression node)
+    {
+        _writer.Write(nameof(BoundCallExpression));
+        _writer.Write(' ');
+        _writer.WriteLine('{');
+        _writer.Indent++;
+
+        _writer.Write(nameof(node.Function));
+        _writer.Write('=');
+        _writer.WriteLine(node.Function.Name);
 
         _writer.Indent--;
         _writer.Write('}');

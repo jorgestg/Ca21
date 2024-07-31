@@ -34,11 +34,11 @@ public partial class Ca21Lexer : Lexer {
 	protected static DFA[] decisionToDFA;
 	protected static PredictionContextCache sharedContextCache = new PredictionContextCache();
 	public const int
-		T__0=1, T__1=2, FuncKeyword=3, LetKeyword=4, MutKeyword=5, Int32Keyword=6, 
-		TrueKeyword=7, FalseKeyword=8, Integer=9, Identifier=10, LeftParenthesis=11, 
-		RightParenthesis=12, LeftBrace=13, RightBrace=14, Semicolon=15, Star=16, 
-		Slash=17, Percentage=18, Plus=19, Minus=20, LessThan=21, LessThanOrEqual=22, 
-		GreaterThan=23, GreaterThanOrEqual=24, Equal=25, Whitespace=26;
+		FuncKeyword=1, LetKeyword=2, MutKeyword=3, Int32Keyword=4, TrueKeyword=5, 
+		FalseKeyword=6, WhileKeyword=7, ReturnKeyword=8, Integer=9, Identifier=10, 
+		LeftParenthesis=11, RightParenthesis=12, LeftBrace=13, RightBrace=14, 
+		Semicolon=15, Star=16, Slash=17, Percentage=18, Plus=19, Minus=20, LessThan=21, 
+		LessThanOrEqual=22, GreaterThan=23, GreaterThanOrEqual=24, Equal=25, Whitespace=26;
 	public static string[] channelNames = {
 		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
 	};
@@ -48,11 +48,11 @@ public partial class Ca21Lexer : Lexer {
 	};
 
 	public static readonly string[] ruleNames = {
-		"T__0", "T__1", "FuncKeyword", "LetKeyword", "MutKeyword", "Int32Keyword", 
-		"TrueKeyword", "FalseKeyword", "Integer", "Identifier", "LeftParenthesis", 
-		"RightParenthesis", "LeftBrace", "RightBrace", "Semicolon", "Star", "Slash", 
-		"Percentage", "Plus", "Minus", "LessThan", "LessThanOrEqual", "GreaterThan", 
-		"GreaterThanOrEqual", "Equal", "Whitespace"
+		"FuncKeyword", "LetKeyword", "MutKeyword", "Int32Keyword", "TrueKeyword", 
+		"FalseKeyword", "WhileKeyword", "ReturnKeyword", "Integer", "Identifier", 
+		"LeftParenthesis", "RightParenthesis", "LeftBrace", "RightBrace", "Semicolon", 
+		"Star", "Slash", "Percentage", "Plus", "Minus", "LessThan", "LessThanOrEqual", 
+		"GreaterThan", "GreaterThanOrEqual", "Equal", "Whitespace"
 	};
 
 
@@ -66,16 +66,16 @@ public partial class Ca21Lexer : Lexer {
 	}
 
 	private static readonly string[] _LiteralNames = {
-		null, "'while'", "'return'", "'func'", "'let'", "'mut'", "'int32'", "'true'", 
-		"'false'", null, null, "'('", "')'", "'{'", "'}'", "';'", "'*'", "'/'", 
+		null, "'func'", "'let'", "'mut'", "'int32'", "'true'", "'false'", "'while'", 
+		"'return'", null, null, "'('", "')'", "'{'", "'}'", "';'", "'*'", "'/'", 
 		"'%'", "'+'", "'-'", "'<'", "'<='", "'>'", "'>='", "'='"
 	};
 	private static readonly string[] _SymbolicNames = {
-		null, null, null, "FuncKeyword", "LetKeyword", "MutKeyword", "Int32Keyword", 
-		"TrueKeyword", "FalseKeyword", "Integer", "Identifier", "LeftParenthesis", 
-		"RightParenthesis", "LeftBrace", "RightBrace", "Semicolon", "Star", "Slash", 
-		"Percentage", "Plus", "Minus", "LessThan", "LessThanOrEqual", "GreaterThan", 
-		"GreaterThanOrEqual", "Equal", "Whitespace"
+		null, "FuncKeyword", "LetKeyword", "MutKeyword", "Int32Keyword", "TrueKeyword", 
+		"FalseKeyword", "WhileKeyword", "ReturnKeyword", "Integer", "Identifier", 
+		"LeftParenthesis", "RightParenthesis", "LeftBrace", "RightBrace", "Semicolon", 
+		"Star", "Slash", "Percentage", "Plus", "Minus", "LessThan", "LessThanOrEqual", 
+		"GreaterThan", "GreaterThanOrEqual", "Equal", "Whitespace"
 	};
 	public static readonly IVocabulary DefaultVocabulary = new Vocabulary(_LiteralNames, _SymbolicNames);
 
@@ -108,9 +108,9 @@ public partial class Ca21Lexer : Lexer {
 		4,0,26,155,6,-1,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
 		6,2,7,7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,2,12,7,12,2,13,7,13,2,14,
 		7,14,2,15,7,15,2,16,7,16,2,17,7,17,2,18,7,18,2,19,7,19,2,20,7,20,2,21,
-		7,21,2,22,7,22,2,23,7,23,2,24,7,24,2,25,7,25,1,0,1,0,1,0,1,0,1,0,1,0,1,
-		1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,2,1,2,1,2,1,2,1,3,1,3,1,3,1,3,1,4,1,4,
-		1,4,1,4,1,5,1,5,1,5,1,5,1,5,1,5,1,6,1,6,1,6,1,6,1,6,1,7,1,7,1,7,1,7,1,
+		7,21,2,22,7,22,2,23,7,23,2,24,7,24,2,25,7,25,1,0,1,0,1,0,1,0,1,0,1,1,1,
+		1,1,1,1,1,1,2,1,2,1,2,1,2,1,3,1,3,1,3,1,3,1,3,1,3,1,4,1,4,1,4,1,4,1,4,
+		1,5,1,5,1,5,1,5,1,5,1,5,1,6,1,6,1,6,1,6,1,6,1,6,1,7,1,7,1,7,1,7,1,7,1,
 		7,1,7,1,8,4,8,98,8,8,11,8,12,8,99,1,8,1,8,4,8,104,8,8,11,8,12,8,105,5,
 		8,108,8,8,10,8,12,8,111,9,8,1,9,1,9,5,9,115,8,9,10,9,12,9,118,9,9,1,10,
 		1,10,1,11,1,11,1,12,1,12,1,13,1,13,1,14,1,14,1,15,1,15,1,16,1,16,1,17,
@@ -123,23 +123,23 @@ public partial class Ca21Lexer : Lexer {
 		1,0,0,0,0,15,1,0,0,0,0,17,1,0,0,0,0,19,1,0,0,0,0,21,1,0,0,0,0,23,1,0,0,
 		0,0,25,1,0,0,0,0,27,1,0,0,0,0,29,1,0,0,0,0,31,1,0,0,0,0,33,1,0,0,0,0,35,
 		1,0,0,0,0,37,1,0,0,0,0,39,1,0,0,0,0,41,1,0,0,0,0,43,1,0,0,0,0,45,1,0,0,
-		0,0,47,1,0,0,0,0,49,1,0,0,0,0,51,1,0,0,0,1,53,1,0,0,0,3,59,1,0,0,0,5,66,
-		1,0,0,0,7,71,1,0,0,0,9,75,1,0,0,0,11,79,1,0,0,0,13,85,1,0,0,0,15,90,1,
+		0,0,47,1,0,0,0,0,49,1,0,0,0,0,51,1,0,0,0,1,53,1,0,0,0,3,58,1,0,0,0,5,62,
+		1,0,0,0,7,66,1,0,0,0,9,72,1,0,0,0,11,77,1,0,0,0,13,83,1,0,0,0,15,89,1,
 		0,0,0,17,97,1,0,0,0,19,112,1,0,0,0,21,119,1,0,0,0,23,121,1,0,0,0,25,123,
 		1,0,0,0,27,125,1,0,0,0,29,127,1,0,0,0,31,129,1,0,0,0,33,131,1,0,0,0,35,
 		133,1,0,0,0,37,135,1,0,0,0,39,137,1,0,0,0,41,139,1,0,0,0,43,141,1,0,0,
 		0,45,144,1,0,0,0,47,146,1,0,0,0,49,149,1,0,0,0,51,151,1,0,0,0,53,54,5,
-		119,0,0,54,55,5,104,0,0,55,56,5,105,0,0,56,57,5,108,0,0,57,58,5,101,0,
-		0,58,2,1,0,0,0,59,60,5,114,0,0,60,61,5,101,0,0,61,62,5,116,0,0,62,63,5,
-		117,0,0,63,64,5,114,0,0,64,65,5,110,0,0,65,4,1,0,0,0,66,67,5,102,0,0,67,
-		68,5,117,0,0,68,69,5,110,0,0,69,70,5,99,0,0,70,6,1,0,0,0,71,72,5,108,0,
-		0,72,73,5,101,0,0,73,74,5,116,0,0,74,8,1,0,0,0,75,76,5,109,0,0,76,77,5,
-		117,0,0,77,78,5,116,0,0,78,10,1,0,0,0,79,80,5,105,0,0,80,81,5,110,0,0,
-		81,82,5,116,0,0,82,83,5,51,0,0,83,84,5,50,0,0,84,12,1,0,0,0,85,86,5,116,
-		0,0,86,87,5,114,0,0,87,88,5,117,0,0,88,89,5,101,0,0,89,14,1,0,0,0,90,91,
-		5,102,0,0,91,92,5,97,0,0,92,93,5,108,0,0,93,94,5,115,0,0,94,95,5,101,0,
-		0,95,16,1,0,0,0,96,98,7,0,0,0,97,96,1,0,0,0,98,99,1,0,0,0,99,97,1,0,0,
-		0,99,100,1,0,0,0,100,109,1,0,0,0,101,103,5,95,0,0,102,104,7,0,0,0,103,
+		102,0,0,54,55,5,117,0,0,55,56,5,110,0,0,56,57,5,99,0,0,57,2,1,0,0,0,58,
+		59,5,108,0,0,59,60,5,101,0,0,60,61,5,116,0,0,61,4,1,0,0,0,62,63,5,109,
+		0,0,63,64,5,117,0,0,64,65,5,116,0,0,65,6,1,0,0,0,66,67,5,105,0,0,67,68,
+		5,110,0,0,68,69,5,116,0,0,69,70,5,51,0,0,70,71,5,50,0,0,71,8,1,0,0,0,72,
+		73,5,116,0,0,73,74,5,114,0,0,74,75,5,117,0,0,75,76,5,101,0,0,76,10,1,0,
+		0,0,77,78,5,102,0,0,78,79,5,97,0,0,79,80,5,108,0,0,80,81,5,115,0,0,81,
+		82,5,101,0,0,82,12,1,0,0,0,83,84,5,119,0,0,84,85,5,104,0,0,85,86,5,105,
+		0,0,86,87,5,108,0,0,87,88,5,101,0,0,88,14,1,0,0,0,89,90,5,114,0,0,90,91,
+		5,101,0,0,91,92,5,116,0,0,92,93,5,117,0,0,93,94,5,114,0,0,94,95,5,110,
+		0,0,95,16,1,0,0,0,96,98,7,0,0,0,97,96,1,0,0,0,98,99,1,0,0,0,99,97,1,0,
+		0,0,99,100,1,0,0,0,100,109,1,0,0,0,101,103,5,95,0,0,102,104,7,0,0,0,103,
 		102,1,0,0,0,104,105,1,0,0,0,105,103,1,0,0,0,105,106,1,0,0,0,106,108,1,
 		0,0,0,107,101,1,0,0,0,108,111,1,0,0,0,109,107,1,0,0,0,109,110,1,0,0,0,
 		110,18,1,0,0,0,111,109,1,0,0,0,112,116,7,1,0,0,113,115,7,2,0,0,114,113,

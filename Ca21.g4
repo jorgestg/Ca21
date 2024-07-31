@@ -2,11 +2,15 @@ grammar Ca21;
 
 // Parser
 compilationUnit
-    : Functions+=functionDefinition EOF
+    : Functions+=functionDefinition+ EOF
     ;
 
 functionDefinition
-    : 'func' Name=Identifier '(' ')' ReturnType=typeReference Body=block
+    : Signature=functionSignature Body=block
+    ;
+
+functionSignature
+    : 'func' Name=Identifier '(' ')' ReturnType=typeReference
     ;
 
 typeReference
@@ -41,6 +45,7 @@ expressionOrBlock
 expression
     : Literal=literal #LiteralExpression
     | Name=Identifier #NameExpression
+    | Callee=expression '('')' #CallExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
@@ -61,6 +66,8 @@ MutKeyword: 'mut';
 Int32Keyword: 'int32';
 TrueKeyword: 'true';
 FalseKeyword: 'false';
+WhileKeyword: 'while';
+ReturnKeyword: 'return';
 
 // Literals
 Integer: [0-9]+ ('_' [0-9]+)*;

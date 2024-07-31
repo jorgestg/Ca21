@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
@@ -57,12 +58,28 @@ public sealed class DiagnosticList
         _diagnostics = newArray;
     }
 
-    public void CopyTo(ICollection<Diagnostic> other)
-    {
-        if (_diagnostics == null)
-            return;
+    public Enumerator GetEnumerator() => new(this);
 
-        for (var i = 0; i < _count; i++)
-            other.Add(_diagnostics[i]);
+    public struct Enumerator(DiagnosticList diagnostics) : IEnumerator<Diagnostic>, IEnumerator
+    {
+        private readonly DiagnosticList _diagnostics = diagnostics;
+        private int _index = -1;
+
+        public readonly Diagnostic Current => _diagnostics[_index];
+
+        readonly object IEnumerator.Current => Current;
+
+        public bool MoveNext()
+        {
+            _index++;
+            return _index < _diagnostics.Count;
+        }
+
+        public void Reset()
+        {
+            _index = -1;
+        }
+
+        public readonly void Dispose() { }
     }
 }

@@ -22,4 +22,8 @@ internal static class DiagnosticMessages
     public const string AllCodePathsMustReturn = "Not all code paths return a value";
 
     public static string NameIsAlreadyDefined(string name) => $"`{name}` is already defined";
+
+    public const string ExpressionIsNotCallable = "Expression is not callable";
+
+    public static string NameIsNotCallable(string name) => $"`{name}` is not callable";
 }

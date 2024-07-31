@@ -17,7 +17,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
 
         var cfg = ControlFlowGraph.Create(loweredBody);
         if (!cfg.AllPathsReturn())
-            diagnostics.Add(FunctionSymbol.Context.Name, DiagnosticMessages.AllCodePathsMustReturn);
+            diagnostics.Add(FunctionSymbol.Context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
 
         return loweredBody;
     }

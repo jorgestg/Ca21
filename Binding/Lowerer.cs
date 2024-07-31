@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Ca21.Binding;
 
-internal sealed class Lowerer
+internal static class Lowerer
 {
     public static BoundBlock Lower(BoundBlock block)
     {

@@ -1,6 +1,7 @@
 ﻿using Antlr4.Runtime;
 using Ca21;
 using Ca21.Antlr;
+using Ca21.CodeGen;
 using Ca21.Sources;
 using Ca21.Symbols;
 
@@ -17,6 +18,10 @@ const string source = """
 
         return c;
     }
+
+    func main() int32 {
+        return fib();
+    }
     """;
 
 var sourceText = new SourceText("main.ca21", source.AsMemory());
@@ -25,8 +30,8 @@ SourceTextMap.Register(charStream, sourceText);
 
 var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
 var compilationUnit = parser.compilationUnit();
-var module = new ModuleSymbol(compilationUnit);
-var compiler = Compiler.Compile((SourceFunctionSymbol)module.Functions.First());
+var module = new ModuleSymbol(compilationUnit, "main");
+var compiler = Compiler.Compile(module);
 if (compiler.Diagnostics.Any())
 {
     Console.ForegroundColor = ConsoleColor.DarkRed;
@@ -45,5 +50,6 @@ if (compiler.Diagnostics.Any())
 }
 else
 {
-    Console.WriteLine(compiler.ToString());
+    var wat = WatEmitter.Emit(compiler.ModuleSymbol, compiler.Bodies);
+    Console.WriteLine(wat);
 }

@@ -9,13 +9,19 @@ namespace Ca21.Binding;
 
 internal sealed class LocalScopeBinder(Binder parent) : Binder
 {
-    private readonly Dictionary<string, Symbol> _locals = new();
+    private Dictionary<string, Symbol>? _locals;
 
     public override Binder Parent { get; } = parent;
 
     public override Symbol? Lookup(string name)
     {
-        return _locals.GetValueOrDefault(name) ?? Parent.Lookup(name);
+        return _locals?.GetValueOrDefault(name) ?? Parent.Lookup(name);
+    }
+
+    public void Define(Symbol symbol)
+    {
+        _locals ??= new Dictionary<string, Symbol>();
+        _locals[symbol.Name] = symbol;
     }
 
     public BoundStatement BindStatement(StatementContext context, DiagnosticList diagnostics)
@@ -35,7 +41,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
     {
         var initializer = BindExpressionOrBlock(context.Value, diagnostics);
         var local = new SourceLocalSymbol(context, initializer.Type);
-        _locals[local.Name] = local;
+        Define(local);
         return new BoundLocalDeclaration(context, local, initializer);
     }
 
@@ -92,6 +98,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         {
             LiteralExpressionContext c => BindLiteral(c.Literal, diagnostics),
             NameExpressionContext c => BindNameExpression(c, diagnostics),
+            CallExpressionContext c => BindCallExpression(c, diagnostics),
             FactorExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             TermExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             ComparisonExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
@@ -123,6 +130,24 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         }
 
         return new BoundNameExpression(context, referencedSymbol);
+    }
+
+    private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)
+    {
+        var callee = BindExpression(context.Callee, diagnostics);
+        if (callee is not BoundNameExpression nameExpression)
+        {
+            diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
+            return new BoundCallExpression(context, FunctionSymbol.Missing);
+        }
+
+        if (nameExpression.ReferencedSymbol is not SourceFunctionSymbol functionSymbol)
+        {
+            diagnostics.Add(context, DiagnosticMessages.NameIsNotCallable(nameExpression.ReferencedSymbol.Name));
+            return new BoundCallExpression(context, FunctionSymbol.Missing);
+        }
+
+        return new BoundCallExpression(context, functionSymbol);
     }
 
     private BoundBinaryExpression BindBinaryExpression(

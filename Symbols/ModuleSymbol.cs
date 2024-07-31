@@ -1,43 +1,58 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
-using System.Diagnostics;
+using Ca21.Binding;
 using Ca21.Diagnostics;
 using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
-internal sealed class ModuleSymbol(CompilationUnitContext context) : Symbol
+internal sealed class ModuleSymbol : Symbol
 {
-    public override CompilationUnitContext Context { get; } = context;
-    public override string Name => "module";
-
-    private DiagnosticList? _diagnostics;
-    public ImmutableArray<Diagnostic> Diagnostics => _diagnostics == null ? [] : _diagnostics.DrainToImmutable();
-
-    private ImmutableArray<FunctionSymbol> _functions;
-    public ImmutableArray<FunctionSymbol> Functions =>
-        _functions.IsDefault ? _functions = CreateFunctions() : _functions;
-
-    private ImmutableArray<FunctionSymbol> CreateFunctions()
+    public ModuleSymbol(CompilationUnitContext context, string name)
     {
-        var seenNames = new string[Context._Functions.Count];
-        var builder = new ArrayBuilder<FunctionSymbol>(Context._Functions.Count);
-        foreach (var context in Context._Functions)
+        Context = context;
+        Name = name;
+        Binder = new ModuleBinder(this);
+
+        Initialize(this, out var diagnostics, out var functions, out var memberMap);
+        Diagnostics = diagnostics;
+        Functions = functions;
+        MemberMap = memberMap;
+    }
+
+    public override CompilationUnitContext Context { get; }
+    public override Binder Binder { get; }
+    public override string Name { get; }
+    public ImmutableArray<Diagnostic> Diagnostics { get; }
+    public ImmutableArray<FunctionSymbol> Functions { get; }
+    public FrozenDictionary<string, FunctionSymbol> MemberMap { get; }
+
+    private static void Initialize(
+        ModuleSymbol moduleSymbol,
+        out ImmutableArray<Diagnostic> diagnostics,
+        out ImmutableArray<FunctionSymbol> functions,
+        out FrozenDictionary<string, FunctionSymbol> memberMap
+    )
+    {
+        var diagnosticsBuilder = new DiagnosticList();
+        var functionsBuilder = new ArrayBuilder<FunctionSymbol>(moduleSymbol.Context._Functions.Count);
+        var memberMapBuilder = new Dictionary<string, FunctionSymbol>();
+        foreach (var functionContext in moduleSymbol.Context._Functions)
         {
-            var functionSymbol = context switch
-            {
-                FunctionDefinitionContext c => new SourceFunctionSymbol(context, this),
-                _ => throw new UnreachableException()
-            };
+            var functionSymbol = new SourceFunctionSymbol(functionContext, moduleSymbol);
+            functionsBuilder.Add(functionSymbol);
 
-            if (seenNames.Contains(functionSymbol.Name))
+            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
             {
-                _diagnostics ??= new DiagnosticList();
-                _diagnostics.Add(context, DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name));
+                diagnosticsBuilder.Add(
+                    functionContext.Signature.Name,
+                    DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
+                );
             }
-
-            builder.Add(functionSymbol);
         }
 
-        return builder.MoveToImmutable();
+        diagnostics = diagnosticsBuilder.DrainToImmutable();
+        functions = functionsBuilder.MoveToImmutable();
+        memberMap = memberMapBuilder.ToFrozenDictionary();
     }
 }
