@@ -1,6 +1,7 @@
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Text;
 using Ca21.Binding;
 using Ca21.Symbols;
 
@@ -8,8 +9,11 @@ namespace Ca21.CodeGen;
 
 internal sealed class WatEmitter
 {
-    private readonly Dictionary<string, int> _stringLiterals = new(8);
     private readonly List<LocalSymbol> _locals = new(8);
+
+    private readonly Dictionary<string, int> _stringLiterals = new(8);
+    private int _lastOffset = 1;
+
     private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
     private readonly IndentedTextWriter _writer = new(new StringWriter());
 
@@ -37,6 +41,32 @@ internal sealed class WatEmitter
 
         foreach (var (functionSymbol, body) in moduleSymbol.Functions.Zip(bodies))
             EmitFunction((SourceFunctionSymbol)functionSymbol, body);
+
+        if (_stringLiterals.Count == 0)
+        {
+            _writer.Indent--;
+            _writer.Write(')');
+            return;
+        }
+
+        var pagesNeeded = Math.Ceiling(
+            // Pages in WASM are 64 KB
+            _stringLiterals.Sum(pair => Encoding.UTF8.GetByteCount(pair.Key)) / (64.0 * 1024.0)
+        );
+
+        _writer.Write("(memory (export \"memory\") ");
+        _writer.Write(pagesNeeded);
+        _writer.WriteLine(')');
+
+        foreach (var (stringLiteral, offset) in _stringLiterals)
+        {
+            _writer.Write("(data (i32.const ");
+            _writer.Write(offset);
+            _writer.Write(')');
+            _writer.Write(' ');
+            _writer.Write(stringLiteral);
+            _writer.WriteLine(')');
+        }
 
         _writer.Indent--;
         _writer.Write(')');
@@ -74,29 +104,25 @@ internal sealed class WatEmitter
             _writer.WriteLine(')');
         }
 
-        EmitLocals(body);
-
         _writer.Indent++;
-        EmitBlock(body);
-        _writer.Indent--;
-        _writer.WriteLine(')');
-    }
-
-    private void EmitLocals(BoundBlock body)
-    {
+        
         var localDeclarations = body.Statements.OfType<BoundLocalDeclaration>();
-        if (!localDeclarations.Any())
-            return;
-
-        _writer.Write(" (local");
-        foreach (var localDeclaration in localDeclarations)
+        if (localDeclarations.Any())
         {
-            _locals.Add(localDeclaration.Local);
+            _writer.Write("(local");
+            foreach (var localDeclaration in localDeclarations)
+            {
+                _locals.Add(localDeclaration.Local);
 
-            _writer.Write(' ');
-            EmitType(localDeclaration.Local.Type);
+                _writer.Write(' ');
+                EmitType(localDeclaration.Local.Type);
+            }
+
+            _writer.WriteLine(')');
         }
 
+        EmitBlock(body);
+        _writer.Indent--;
         _writer.WriteLine(')');
     }
 
@@ -247,19 +273,21 @@ internal sealed class WatEmitter
     {
         if (literal.Type == TypeSymbol.String)
         {
-            _writer.Write("i32.load ");
-            if (_stringLiterals.TryGetValue((string)literal.Value, out var i))
+            _writer.Write("i32.const ");
+
+            var str = (string)literal.Value;
+            if (_stringLiterals.TryGetValue(str, out var offset))
             {
-                _writer.WriteLine(i);
+                _writer.WriteLine(offset);
             }
             else
             {
-                i = _stringLiterals.Count;
-                _stringLiterals.Add((string)literal.Value, i);
-                _writer.WriteLine(i);
+                _stringLiterals.Add(str, _lastOffset);
+                _writer.WriteLine(_lastOffset);
+                _lastOffset += Encoding.UTF8.GetByteCount(str.AsSpan().Trim('"'));
             }
 
-            // TODO: Add data section
+            _writer.WriteLine("i32.load");
         }
         else if (literal.Type == TypeSymbol.Int32 || literal.Type == TypeSymbol.Bool)
         {

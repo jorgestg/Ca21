@@ -6,7 +6,7 @@ using Ca21.Sources;
 using Ca21.Symbols;
 
 const string source = """
-    func sayHello() string {
+    func helloWorld() string {
         return "Hello, World!";
     }
     """;
