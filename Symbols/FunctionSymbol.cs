@@ -47,7 +47,21 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol
     public ImmutableArray<Diagnostic> Diagnostics { get; }
 
     private TypeSymbol? _returnType;
-    public override TypeSymbol ReturnType => _returnType ??= Binder.BindType(Context.Signature.ReturnType);
+    public override TypeSymbol ReturnType
+    {
+        get
+        {
+            if (_returnType != null)
+                return _returnType;
+
+            if (Context.Signature.ReturnType == null)
+                _returnType = TypeSymbol.Unit;
+            else
+                _returnType = Binder.BindType(Context.Signature.ReturnType);
+
+            return _returnType;
+        }
+    }
 
     public override ImmutableArray<SourceParameterSymbol> Parameters { get; }
     public FrozenDictionary<string, SourceParameterSymbol> ParameterMap { get; }

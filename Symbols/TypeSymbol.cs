@@ -8,6 +8,7 @@ internal abstract class TypeSymbol : Symbol
     public static readonly TypeSymbol Unit = new NativeTypeSymbol("unit");
     public static readonly TypeSymbol Int32 = new NativeTypeSymbol("int32");
     public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool");
+    public static readonly TypeSymbol String = new NativeTypeSymbol("string");
 
     private sealed class NativeTypeSymbol(string name) : TypeSymbol
     {

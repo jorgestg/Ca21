@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Antlr4.Runtime;
 using Ca21.Diagnostics;
 using Ca21.Symbols;
@@ -17,7 +18,13 @@ internal abstract class Binder
 
     public virtual TypeSymbol BindType(TypeReferenceContext context)
     {
-        return TypeSymbol.Int32;
+        var nativeTypeReference = (NativeTypeReferenceContext)context;
+        return nativeTypeReference.NativeType.Keyword.Type switch
+        {
+            Int32Keyword => TypeSymbol.Int32,
+            StringKeyword => TypeSymbol.String,
+            _ => throw new UnreachableException()
+        };
     }
 
     public BoundBlock BindBlock(BlockContext context, DiagnosticList diagnostics)

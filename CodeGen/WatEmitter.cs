@@ -8,6 +8,7 @@ namespace Ca21.CodeGen;
 
 internal sealed class WatEmitter
 {
+    private readonly Dictionary<string, int> _stringLiterals = new(8);
     private readonly List<LocalSymbol> _locals = new(8);
     private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
     private readonly IndentedTextWriter _writer = new(new StringWriter());
@@ -101,7 +102,7 @@ internal sealed class WatEmitter
 
     private void EmitType(TypeSymbol typeSymbol)
     {
-        if (typeSymbol == TypeSymbol.Int32 || typeSymbol == TypeSymbol.Bool)
+        if (typeSymbol == TypeSymbol.Int32 || typeSymbol == TypeSymbol.String || typeSymbol == TypeSymbol.Bool)
             _writer.Write("i32");
         else if (typeSymbol == TypeSymbol.Unit)
             return;
@@ -244,10 +245,32 @@ internal sealed class WatEmitter
 
     private void EmitLiteral(BoundLiteralExpression literal)
     {
-        EmitType(literal.Type);
-        _writer.Write(".const ");
-        _writer.Write(literal.Value);
-        _writer.WriteLine();
+        if (literal.Type == TypeSymbol.String)
+        {
+            _writer.Write("i32.load ");
+            if (_stringLiterals.TryGetValue((string)literal.Value, out var i))
+            {
+                _writer.WriteLine(i);
+            }
+            else
+            {
+                i = _stringLiterals.Count;
+                _stringLiterals.Add((string)literal.Value, i);
+                _writer.WriteLine(i);
+            }
+
+            // TODO: Add data section
+        }
+        else if (literal.Type == TypeSymbol.Int32 || literal.Type == TypeSymbol.Bool)
+        {
+            EmitType(literal.Type);
+            _writer.Write(".const ");
+            _writer.WriteLine(literal.Value);
+        }
+        else
+        {
+            throw new UnreachableException();
+        }
     }
 
     private void EmitNameExpression(BoundNameExpression name)

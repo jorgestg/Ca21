@@ -10,7 +10,7 @@ functionDefinition
     ;
 
 functionSignature
-    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference
+    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference?
     ;
 
 parameterList
@@ -27,6 +27,7 @@ typeReference
 
 typeKeyword
     : Keyword='int32'
+    | Keyword='string'
     ;
 
 block
@@ -68,6 +69,7 @@ literal
     : Value=Integer #IntegerLiteral
     | Value=TrueKeyword #TrueLiteral
     | Value=FalseKeyword #FalseLiteral
+    | Value=String #StringLiteral
     ;
 
 // Lexer
@@ -76,12 +78,14 @@ FuncKeyword: 'func';
 LetKeyword: 'let';
 MutKeyword: 'mut';
 Int32Keyword: 'int32';
+StringKeyword: 'string';
 TrueKeyword: 'true';
 FalseKeyword: 'false';
 WhileKeyword: 'while';
 ReturnKeyword: 'return';
 
 // Literals
+String: '"' .*? '"';
 Integer: [0-9]+ ('_' [0-9]+)*;
 Identifier: [a-zA-Z_][a-zA-Z_0-9]*;
 
