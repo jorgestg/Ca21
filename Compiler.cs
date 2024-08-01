@@ -44,6 +44,9 @@ internal sealed class Compiler
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
         var diagnostics = new DiagnosticList();
+        if (functionSymbol.Diagnostics.Any())
+            AppendDiagnostics(functionSymbol.Diagnostics);
+
         var body = functionSymbol.Binder.BindBody(diagnostics);
         if (diagnostics.Any())
             AppendDiagnostics(diagnostics);

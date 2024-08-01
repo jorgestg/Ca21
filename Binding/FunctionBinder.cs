@@ -8,6 +8,11 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
     public override Binder Parent => FunctionSymbol.Module.Binder;
     public SourceFunctionSymbol FunctionSymbol { get; } = functionSymbol;
 
+    public override Symbol? Lookup(string name)
+    {
+        return FunctionSymbol.ParameterMap.GetValueOrDefault(name) ?? Parent.Lookup(name);
+    }
+
     public BoundBlock BindBody(DiagnosticList diagnostics)
     {
         var boundBody = BindBlock(FunctionSymbol.Context.Body, diagnostics);

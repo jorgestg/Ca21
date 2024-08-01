@@ -135,19 +135,31 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
     private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)
     {
         var callee = BindExpression(context.Callee, diagnostics);
+        var argumentsBuilder = new ArrayBuilder<BoundExpression>(context.ArgumentList._Arguments.Count);
+        foreach (var argument in context.ArgumentList._Arguments)
+        {
+            var boundArgument = BindExpression(argument, diagnostics);
+            argumentsBuilder.Add(boundArgument);
+        }
+
+        var arguments = argumentsBuilder.MoveToImmutable();
+
         if (callee is not BoundNameExpression nameExpression)
         {
             diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
-            return new BoundCallExpression(context, FunctionSymbol.Missing);
+            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
         }
 
         if (nameExpression.ReferencedSymbol is not SourceFunctionSymbol functionSymbol)
         {
             diagnostics.Add(context, DiagnosticMessages.NameIsNotCallable(nameExpression.ReferencedSymbol.Name));
-            return new BoundCallExpression(context, FunctionSymbol.Missing);
+            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
         }
 
-        return new BoundCallExpression(context, functionSymbol);
+        foreach (var (parameter, argument) in functionSymbol.Parameters.Zip(arguments))
+            TypeCheck(context, parameter.Type, argument.Type, diagnostics);
+
+        return new BoundCallExpression(context, functionSymbol, arguments);
     }
 
     private BoundBinaryExpression BindBinaryExpression(

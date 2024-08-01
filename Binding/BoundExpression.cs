@@ -30,10 +30,15 @@ internal sealed class BoundLiteralExpression(ParserRuleContext context, object v
     public object Value { get; } = value;
 }
 
-internal sealed class BoundCallExpression(ParserRuleContext context, FunctionSymbol function) : BoundExpression(context)
+internal sealed class BoundCallExpression(
+    ParserRuleContext context,
+    FunctionSymbol function,
+    ImmutableArray<BoundExpression> arguments
+) : BoundExpression(context)
 {
     public override TypeSymbol Type => Function.ReturnType;
     public FunctionSymbol Function { get; } = function;
+    public ImmutableArray<BoundExpression> Arguments { get; } = arguments;
 }
 
 internal sealed class BoundNameExpression(ParserRuleContext context, Symbol referencedSymbol) : BoundExpression(context)

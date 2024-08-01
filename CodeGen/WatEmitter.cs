@@ -43,6 +43,8 @@ internal sealed class WatEmitter
 
     private void EmitFunction(SourceFunctionSymbol functionSymbol, BoundBlock body)
     {
+        _locals.Clear();
+
         _writer.Write("(func");
 
         _writer.Write(" (export ");
@@ -50,6 +52,19 @@ internal sealed class WatEmitter
         _writer.Write(functionSymbol.Name);
         _writer.Write('"');
         _writer.Write(')');
+
+        if (functionSymbol.Parameters.Length > 0)
+        {
+            _writer.Write(" (param");
+            foreach (var parameter in functionSymbol.Parameters)
+            {
+                _locals.Add(parameter);
+                _writer.Write(' ');
+                EmitType(parameter.Type);
+            }
+
+            _writer.Write(')');
+        }
 
         if (functionSymbol.ReturnType != TypeSymbol.Unit)
         {
@@ -68,8 +83,6 @@ internal sealed class WatEmitter
 
     private void EmitLocals(BoundBlock body)
     {
-        _locals.Clear();
-
         var localDeclarations = body.Statements.OfType<BoundLocalDeclaration>();
         if (!localDeclarations.Any())
             return;
@@ -257,6 +270,9 @@ internal sealed class WatEmitter
 
     private void EmitCallExpression(BoundCallExpression call)
     {
+        foreach (var argument in call.Arguments)
+            EmitExpression(argument);
+
         _writer.Write("call ");
         EmitSymbolReference(call.Function);
     }

@@ -10,7 +10,15 @@ functionDefinition
     ;
 
 functionSignature
-    : 'func' Name=Identifier '(' ')' ReturnType=typeReference
+    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference
+    ;
+
+parameterList
+    : Parameters+=parameterDefinition (',' Parameters+=parameterDefinition)*
+    ;
+
+parameterDefinition
+    : MutModifier='mut'? Name=Identifier Type=typeReference
     ;
 
 typeReference
@@ -45,11 +53,15 @@ expressionOrBlock
 expression
     : Literal=literal #LiteralExpression
     | Name=Identifier #NameExpression
-    | Callee=expression '('')' #CallExpression
+    | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
     | Assignee=expression '=' Value=expression #AssignmentExpression
+    ;
+
+argumentList
+    : Arguments+=expression (',' Arguments+=expression)*
     ;
 
 literal
@@ -74,6 +86,7 @@ Integer: [0-9]+ ('_' [0-9]+)*;
 Identifier: [a-zA-Z_][a-zA-Z_0-9]*;
 
 // Symbols
+Comma: ',';
 LeftParenthesis: '(';
 RightParenthesis: ')';
 LeftBrace: '{';
