@@ -7,7 +7,7 @@ internal static class DiagnosticMessages
     public static string TypeMismatch(TypeSymbol expected, TypeSymbol got) =>
         $"Type mismatch. Expected `{expected.Name}`, got `{got.Name}`";
 
-    public const string PureExpressionAsStatement = "Expression cannot be used as a statement";
+    public const string ExpressionCannotBeUsedAsStatement = "Expression cannot be used as a statement";
 
     public static string NameNotFound(string name) => $"Name `{name}` not found";
 
@@ -25,5 +25,8 @@ internal static class DiagnosticMessages
 
     public const string ExpressionIsNotCallable = "Expression is not callable";
 
-    public static string NameIsNotCallable(string name) => $"`{name}` is not callable";
+    public static string ValueOfTypeIsNotCallable(TypeSymbol type) => $"Values of type `{type.Name}` are not callable";
+
+    public static string FunctionOnlyExpectsNArguments(FunctionSymbol function) =>
+        $"`{function.Name}` only expects {function.Parameters.Length} argument(s)";
 }

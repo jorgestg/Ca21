@@ -6,7 +6,8 @@ compilationUnit
     ;
 
 functionDefinition
-    : Signature=functionSignature Body=block
+    : ExportModifier='export'? Signature=functionSignature Body=block #TopLevelFunctionDefinition
+    | 'extern' '(' ExternName=String ')' Signature=functionSignature ';' #ExternFunctionDefinition
     ;
 
 functionSignature
@@ -27,7 +28,8 @@ typeReference
 
 typeKeyword
     : Keyword='int32'
-    | Keyword='string'
+    | Keyword='str'
+    | Keyword='bool'
     ;
 
 block
@@ -74,11 +76,14 @@ literal
 
 // Lexer
 // Keywords
+ExternKeyword: 'extern';
+ExportKeyword: 'export';
 FuncKeyword: 'func';
 LetKeyword: 'let';
 MutKeyword: 'mut';
 Int32Keyword: 'int32';
-StringKeyword: 'string';
+BoolKeyword: 'bool';
+StrKeyword: 'str';
 TrueKeyword: 'true';
 FalseKeyword: 'false';
 WhileKeyword: 'while';

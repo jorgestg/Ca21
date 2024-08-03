@@ -42,13 +42,15 @@ internal sealed class ModuleSymbol : Symbol
             var functionSymbol = new SourceFunctionSymbol(functionContext, moduleSymbol);
             functionsBuilder.Add(functionSymbol);
 
-            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
+            var signature = functionContext switch
             {
-                diagnosticsBuilder.Add(
-                    functionContext.Signature.Name,
-                    DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
-                );
-            }
+                TopLevelFunctionDefinitionContext c => c.Signature,
+                ExternFunctionDefinitionContext c => c.Signature,
+                _ => throw new InvalidOperationException()
+            };
+
+            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
+                diagnosticsBuilder.Add(signature.Name, DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name));
         }
 
         diagnostics = diagnosticsBuilder.DrainToImmutable();

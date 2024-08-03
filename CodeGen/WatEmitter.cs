@@ -1,5 +1,5 @@
 using System.CodeDom.Compiler;
-using System.Collections.Immutable;
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Text;
 using Ca21.Binding;
@@ -17,30 +17,30 @@ internal sealed class WatEmitter
     private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
     private readonly IndentedTextWriter _writer = new(new StringWriter());
 
-    private WatEmitter(ModuleSymbol moduleSymbol)
+    private WatEmitter(ModuleSymbol moduleSymbol, FrozenDictionary<FunctionSymbol, BoundBlock> bodies)
     {
         ModuleSymbol = moduleSymbol;
+        Bodies = bodies;
     }
 
     public ModuleSymbol ModuleSymbol { get; }
+    public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies { get; }
 
-    public static string Emit(ModuleSymbol moduleSymbol, ImmutableArray<BoundBlock> bodies)
+    public static string Emit(ModuleSymbol moduleSymbol, FrozenDictionary<FunctionSymbol, BoundBlock> bodies)
     {
-        Debug.Assert(moduleSymbol.Functions.Length == bodies.Length);
-
-        var emitter = new WatEmitter(moduleSymbol);
-        emitter.EmitModule(moduleSymbol, bodies);
+        var emitter = new WatEmitter(moduleSymbol, bodies);
+        emitter.EmitModule();
         var stringWriter = (StringWriter)emitter._writer.InnerWriter;
         return stringWriter.ToString();
     }
 
-    private void EmitModule(ModuleSymbol moduleSymbol, ImmutableArray<BoundBlock> bodies)
+    private void EmitModule()
     {
         _writer.WriteLine("(module");
         _writer.Indent++;
 
-        foreach (var (functionSymbol, body) in moduleSymbol.Functions.Zip(bodies))
-            EmitFunction((SourceFunctionSymbol)functionSymbol, body);
+        foreach (var functionSymbol in ModuleSymbol.Functions)
+            EmitFunction(functionSymbol);
 
         if (_stringLiterals.Count == 0)
         {
@@ -58,13 +58,27 @@ internal sealed class WatEmitter
         _writer.Write(pagesNeeded);
         _writer.WriteLine(')');
 
+        Span<byte> lengthBytes = stackalloc byte[4];
         foreach (var (stringLiteral, offset) in _stringLiterals)
         {
+            var unquotedLiteral = stringLiteral.AsSpan().Trim('"');
             _writer.Write("(data (i32.const ");
             _writer.Write(offset);
             _writer.Write(')');
             _writer.Write(' ');
-            _writer.Write(stringLiteral);
+            _writer.Write('"');
+
+            // Append the int32 length at the beginning of the string
+            var length = (uint)Encoding.UTF8.GetByteCount(unquotedLiteral);
+            BitConverter.TryWriteBytes(lengthBytes, length);
+            foreach (var @byte in lengthBytes)
+            {
+                _writer.Write('\\');
+                _writer.Write(@byte.ToString("X2"));
+            }
+
+            _writer.Write(unquotedLiteral);
+            _writer.Write('"');
             _writer.WriteLine(')');
         }
 
@@ -72,40 +86,47 @@ internal sealed class WatEmitter
         _writer.Write(')');
     }
 
-    private void EmitFunction(SourceFunctionSymbol functionSymbol, BoundBlock body)
+    private void EmitFunction(FunctionSymbol functionSymbol)
+    {
+        var sourceFunctionSymbol = (SourceFunctionSymbol)functionSymbol;
+        if (sourceFunctionSymbol.IsExtern)
+        {
+            EmitExternFunction(sourceFunctionSymbol);
+            return;
+        }
+
+        EmitTopLevelFunction(sourceFunctionSymbol, Bodies[functionSymbol]);
+    }
+
+    private void EmitExternFunction(SourceFunctionSymbol functionSymbol)
+    {
+        _writer.Write("(import ");
+
+        var nameSpan = functionSymbol.ExternName!.AsSpan();
+        var namespaceSeparator = nameSpan.IndexOf(" ");
+        var @namespace = nameSpan[..namespaceSeparator];
+        _writer.Write(@namespace);
+        _writer.Write('"');
+        _writer.Write(' ');
+
+        var functionName = nameSpan[(namespaceSeparator + 1)..];
+        _writer.Write('"');
+        _writer.Write(functionName);
+        _writer.Write(' ');
+
+        EmitFunctionSignature(functionSymbol);
+        _writer.Write(')');
+        _writer.WriteLine(')');
+    }
+
+    private void EmitTopLevelFunction(SourceFunctionSymbol functionSymbol, BoundBlock body)
     {
         _locals.Clear();
 
-        _writer.Write("(func");
-
-        _writer.Write(" (export ");
-        _writer.Write('"');
-        _writer.Write(functionSymbol.Name);
-        _writer.Write('"');
-        _writer.Write(')');
-
-        if (functionSymbol.Parameters.Length > 0)
-        {
-            _writer.Write(" (param");
-            foreach (var parameter in functionSymbol.Parameters)
-            {
-                _locals.Add(parameter);
-                _writer.Write(' ');
-                EmitType(parameter.Type);
-            }
-
-            _writer.Write(')');
-        }
-
-        if (functionSymbol.ReturnType != TypeSymbol.Unit)
-        {
-            _writer.Write(" (result ");
-            EmitType(functionSymbol.ReturnType);
-            _writer.WriteLine(')');
-        }
-
+        EmitFunctionSignature(functionSymbol);
+        _writer.WriteLine();
         _writer.Indent++;
-        
+
         var localDeclarations = body.Statements.OfType<BoundLocalDeclaration>();
         if (localDeclarations.Any())
         {
@@ -124,6 +145,40 @@ internal sealed class WatEmitter
         EmitBlock(body);
         _writer.Indent--;
         _writer.WriteLine(')');
+    }
+
+    private void EmitFunctionSignature(SourceFunctionSymbol functionSymbol)
+    {
+        _writer.Write("(func");
+
+        if (functionSymbol.IsExported)
+        {
+            _writer.Write(" (export ");
+            _writer.Write('"');
+            _writer.Write(functionSymbol.Name);
+            _writer.Write('"');
+            _writer.Write(')');
+        }
+
+        if (functionSymbol.Parameters.Length > 0)
+        {
+            _writer.Write(" (param");
+            foreach (var parameter in functionSymbol.Parameters)
+            {
+                _locals.Add(parameter);
+                _writer.Write(' ');
+                EmitType(parameter.Type);
+            }
+
+            _writer.Write(')');
+        }
+
+        if (functionSymbol.ReturnType != TypeSymbol.Unit)
+        {
+            _writer.Write(" (result ");
+            EmitType(functionSymbol.ReturnType);
+            _writer.Write(')');
+        }
     }
 
     private void EmitType(TypeSymbol typeSymbol)
@@ -286,8 +341,6 @@ internal sealed class WatEmitter
                 _writer.WriteLine(_lastOffset);
                 _lastOffset += Encoding.UTF8.GetByteCount(str.AsSpan().Trim('"'));
             }
-
-            _writer.WriteLine("i32.load");
         }
         else if (literal.Type == TypeSymbol.Int32 || literal.Type == TypeSymbol.Bool)
         {

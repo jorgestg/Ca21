@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Ca21.Symbols;
 
 namespace Ca21.Binding;
 

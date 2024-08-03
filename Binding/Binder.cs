@@ -22,7 +22,8 @@ internal abstract class Binder
         return nativeTypeReference.NativeType.Keyword.Type switch
         {
             Int32Keyword => TypeSymbol.Int32,
-            StringKeyword => TypeSymbol.String,
+            BoolKeyword => TypeSymbol.Bool,
+            StrKeyword => TypeSymbol.String,
             _ => throw new UnreachableException()
         };
     }
@@ -49,7 +50,7 @@ internal abstract class Binder
         DiagnosticList diagnostics
     )
     {
-        if (expected == actual)
+        if (expected.Equals(actual))
             return;
 
         // An error should be already reported in these cases

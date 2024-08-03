@@ -6,8 +6,10 @@ using Ca21.Sources;
 using Ca21.Symbols;
 
 const string source = """
-    func helloWorld() string {
-        return "Hello, World!";
+    extern("js print") func print(s str);
+
+    export func main() {
+        print("Hello, World!");
     }
     """;
 

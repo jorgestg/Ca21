@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Antlr4.Runtime;
 using Ca21.Binding;
 using Ca21.Diagnostics;
@@ -40,11 +41,24 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol
     }
 
     public override FunctionDefinitionContext Context { get; }
-    public override string Name => Context.Signature.Name.Text;
+    private FunctionSignatureContext SignatureContext =>
+        Context switch
+        {
+            TopLevelFunctionDefinitionContext c => c.Signature,
+            ExternFunctionDefinitionContext c => c.Signature,
+            _ => throw new UnreachableException()
+        };
+
+    public override string Name => SignatureContext.Name.Text;
     public override FunctionBinder Binder { get; }
+
+    private TypeSymbol? _type;
+    public override TypeSymbol Type => _type ??= new FunctionTypeSymbol(this);
 
     public override ModuleSymbol Module { get; }
     public ImmutableArray<Diagnostic> Diagnostics { get; }
+
+    public override ImmutableArray<SourceParameterSymbol> Parameters { get; }
 
     private TypeSymbol? _returnType;
     public override TypeSymbol ReturnType
@@ -54,17 +68,21 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol
             if (_returnType != null)
                 return _returnType;
 
-            if (Context.Signature.ReturnType == null)
+            if (SignatureContext.ReturnType == null)
                 _returnType = TypeSymbol.Unit;
             else
-                _returnType = Binder.BindType(Context.Signature.ReturnType);
+                _returnType = Binder.BindType(SignatureContext.ReturnType);
 
             return _returnType;
         }
     }
 
-    public override ImmutableArray<SourceParameterSymbol> Parameters { get; }
     public FrozenDictionary<string, SourceParameterSymbol> ParameterMap { get; }
+
+    public bool IsExported => Context is TopLevelFunctionDefinitionContext topLevel && topLevel.ExportModifier != null;
+
+    public bool IsExtern => Context is ExternFunctionDefinitionContext;
+    public string? ExternName => Context is ExternFunctionDefinitionContext c ? c.ExternName.Text : null;
 
     private static void CreateParameters(
         SourceFunctionSymbol functionSymbol,
@@ -73,7 +91,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol
         out FrozenDictionary<string, SourceParameterSymbol> parameterMap
     )
     {
-        var context = functionSymbol.Context.Signature.ParameterList?._Parameters;
+        var context = functionSymbol.SignatureContext.ParameterList?._Parameters;
         if (context == null)
         {
             diagnostics = ImmutableArray<Diagnostic>.Empty;
@@ -92,7 +110,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol
             {
                 diagnosticsBuilder.Add(
                     parameterContext.Name,
-                    DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
+                    DiagnosticMessages.NameIsAlreadyDefined(parameterSymbol.Name)
                 );
             }
 

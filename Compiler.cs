@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using Ca21.Binding;
 using Ca21.Diagnostics;
@@ -8,7 +9,7 @@ namespace Ca21;
 internal sealed class Compiler
 {
     private readonly DiagnosticList _diagnosticsBuilder = new();
-    private readonly List<BoundBlock> _bodiesBuilder = new();
+    private readonly Dictionary<FunctionSymbol, BoundBlock> _bodiesBuilder = new();
 
     private Compiler(ModuleSymbol moduleSymbol)
     {
@@ -21,9 +22,8 @@ internal sealed class Compiler
     public ImmutableArray<Diagnostic> Diagnostics =>
         _diagnostics.IsDefault ? _diagnostics = _diagnosticsBuilder.DrainToImmutable() : _diagnostics;
 
-    private ImmutableArray<BoundBlock> _bodies;
-    public ImmutableArray<BoundBlock> Bodies =>
-        _bodies.IsDefault ? _bodies = _bodiesBuilder.ToImmutableArray() : _bodies;
+    private FrozenDictionary<FunctionSymbol, BoundBlock>? _bodies;
+    public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies => _bodies ??= _bodiesBuilder.ToFrozenDictionary();
 
     public static Compiler Compile(ModuleSymbol moduleSymbol)
     {
@@ -43,15 +43,18 @@ internal sealed class Compiler
 
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
-        var diagnostics = new DiagnosticList();
         if (functionSymbol.Diagnostics.Any())
             AppendDiagnostics(functionSymbol.Diagnostics);
 
+        if (functionSymbol.IsExtern)
+            return;
+
+        var diagnostics = new DiagnosticList();
         var body = functionSymbol.Binder.BindBody(diagnostics);
         if (diagnostics.Any())
             AppendDiagnostics(diagnostics);
 
-        _bodiesBuilder.Add(body);
+        _bodiesBuilder.Add(functionSymbol, body);
     }
 
     private void AppendDiagnostics(DiagnosticList diagnostics)

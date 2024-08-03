@@ -65,8 +65,8 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
     private BoundExpressionStatement BindExpressionStatement(ExpressionContext context, DiagnosticList diagnostics)
     {
         var expression = BindExpression(context, diagnostics);
-        if (expression is not BoundAssignmentExpression)
-            diagnostics.Add(context, DiagnosticMessages.PureExpressionAsStatement);
+        if (expression is not BoundAssignmentExpression and not BoundCallExpression)
+            diagnostics.Add(context, DiagnosticMessages.ExpressionCannotBeUsedAsStatement);
 
         return new BoundExpressionStatement(context, expression);
     }
@@ -148,17 +148,34 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         if (callee is not BoundNameExpression nameExpression)
         {
             diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
-            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
+            return new BoundCallExpression(context.Callee, FunctionSymbol.Missing, arguments);
         }
 
         if (nameExpression.ReferencedSymbol is not SourceFunctionSymbol functionSymbol)
         {
-            diagnostics.Add(context, DiagnosticMessages.NameIsNotCallable(nameExpression.ReferencedSymbol.Name));
+            if (nameExpression.ReferencedSymbol != Symbol.Missing)
+            {
+                diagnostics.Add(
+                    nameExpression.Context,
+                    DiagnosticMessages.ValueOfTypeIsNotCallable(nameExpression.ReferencedSymbol.Type)
+                );
+            }
+
             return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
         }
 
-        foreach (var (parameter, argument) in functionSymbol.Parameters.Zip(arguments))
-            TypeCheck(context, parameter.Type, argument.Type, diagnostics);
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            var parameter = functionSymbol.Parameters.ElementAtOrDefault(i);
+            if (parameter == null)
+            {
+                diagnostics.Add(context, DiagnosticMessages.FunctionOnlyExpectsNArguments(functionSymbol));
+                break;
+            }
+
+            var argument = arguments[i];
+            TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
+        }
 
         return new BoundCallExpression(context, functionSymbol, arguments);
     }
