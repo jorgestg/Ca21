@@ -16,7 +16,7 @@ internal abstract class Binder
         return Parent.Lookup(name);
     }
 
-    public virtual TypeSymbol BindType(TypeReferenceContext context)
+    public virtual TypeSymbol BindType(TypeReferenceContext context, DiagnosticList diagnostics)
     {
         var nativeTypeReference = (NativeTypeReferenceContext)context;
         return nativeTypeReference.NativeType.Keyword.Type switch

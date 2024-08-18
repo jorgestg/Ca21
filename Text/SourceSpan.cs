@@ -1,4 +1,4 @@
-namespace Ca21.Sources;
+namespace Ca21.Text;
 
 public readonly struct SourceSpan(SourceText source, int start, int length)
 {

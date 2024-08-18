@@ -2,12 +2,28 @@ grammar Ca21;
 
 // Parser
 compilationUnit
-    : Functions+=functionDefinition+ EOF
+    : Definitions+=topLevelDefinition+ EOF
+    ;
+
+topLevelDefinition
+    : Function=functionDefinition #TopLevelFunctionDefinition
+    | Structure=structureDefinition #TopLevelStructureDefinition
+    ;
+
+structureDefinition
+    : 'struct' Name=Identifier '{' (Fields+=fieldDefinition (',' Fields+=fieldDefinition)*) '}'
+    ;
+
+fieldDefinition
+    : Name=Identifier Type=typeReference
     ;
 
 functionDefinition
-    : ExportModifier='export'? Signature=functionSignature Body=block #TopLevelFunctionDefinition
-    | 'extern' '(' ExternName=String ')' Signature=functionSignature ';' #ExternFunctionDefinition
+    : ExportModifier='export'? ExternModifier=externModifier? Signature=functionSignature (EndOfDeclaration=';' | Body=block)
+    ;
+
+externModifier
+    : 'extern' '(' ExternName=String ')'
     ;
 
 functionSignature
@@ -84,6 +100,7 @@ MutKeyword: 'mut';
 Int32Keyword: 'int32';
 BoolKeyword: 'bool';
 StrKeyword: 'str';
+StructKeyword: 'struct';
 TrueKeyword: 'true';
 FalseKeyword: 'false';
 WhileKeyword: 'while';

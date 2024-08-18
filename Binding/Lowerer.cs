@@ -28,24 +28,24 @@ internal static class Lowerer
 
     private static BoundBlock Flatten(BoundBlock block)
     {
-        ImmutableArray<BoundStatement>.Builder? statements = null;
+        var statements = default(ArrayBuilder<BoundStatement>);
         FlattenCore(block, ref statements);
-        return statements == null ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
+        return statements.IsDefault ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
 
-        static void FlattenCore(BoundBlock block, ref ImmutableArray<BoundStatement>.Builder? statements)
+        static void FlattenCore(BoundBlock block, ref ArrayBuilder<BoundStatement> statements)
         {
             for (var i = 0; i < block.Statements.Length; i++)
             {
                 var statement = block.Statements[i];
                 if (statement is not BoundBlock b)
                 {
-                    statements?.Add(statement);
+                    statements.TryAdd(statement);
                     continue;
                 }
 
-                if (statements == null)
+                if (statements.IsDefault)
                 {
-                    statements = ImmutableArray.CreateBuilder<BoundStatement>();
+                    statements = new ArrayBuilder<BoundStatement>();
                     for (var j = 0; j < i; j++)
                         statements.Add(block.Statements[j]);
                 }

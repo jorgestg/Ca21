@@ -8,5 +8,5 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
 
     public override Binder Parent => throw new InvalidOperationException();
 
-    public override Symbol? Lookup(string name) => _moduleSymbol.MemberMap.GetValueOrDefault(name);
+    public override Symbol? Lookup(string name) => (Symbol?)_moduleSymbol.MemberMap.GetValueOrDefault(name);
 }

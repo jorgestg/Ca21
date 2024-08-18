@@ -100,11 +100,13 @@ internal sealed class WatEmitter
 
     private void EmitExternFunction(SourceFunctionSymbol functionSymbol)
     {
+        Debug.Assert(functionSymbol.IsExtern);
+
         _writer.Write("(import ");
 
-        var nameSpan = functionSymbol.ExternName!.AsSpan();
+        var nameSpan = functionSymbol.ExternName.AsSpan();
         var namespaceSeparator = nameSpan.IndexOf(" ");
-        var @namespace = nameSpan[..namespaceSeparator];
+        var @namespace = nameSpan[0..namespaceSeparator];
         _writer.Write(@namespace);
         _writer.Write('"');
         _writer.Write(' ');
@@ -244,7 +246,7 @@ internal sealed class WatEmitter
         _writer.Indent++;
     }
 
-    private void EmitStructureEndStatement(BoundControlBlockEndStatement structureEnd)
+    private void EmitStructureEndStatement(BoundControlBlockEndStatement _)
     {
         _controlBlocks.Pop();
 
@@ -365,7 +367,7 @@ internal sealed class WatEmitter
         var i = symbol switch
         {
             LocalSymbol local => _locals.IndexOf(local),
-            FunctionSymbol function => ModuleSymbol.Functions.IndexOf(function),
+            FunctionSymbol function => ModuleSymbol.Functions.IndexOf((SourceFunctionSymbol)function),
             _ => throw new UnreachableException()
         };
 

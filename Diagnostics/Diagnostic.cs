@@ -1,4 +1,4 @@
-using Ca21.Sources;
+using Ca21.Text;
 
 namespace Ca21.Diagnostics;
 

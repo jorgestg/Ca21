@@ -20,7 +20,7 @@ internal sealed class Compiler
 
     private ImmutableArray<Diagnostic> _diagnostics;
     public ImmutableArray<Diagnostic> Diagnostics =>
-        _diagnostics.IsDefault ? _diagnostics = _diagnosticsBuilder.DrainToImmutable() : _diagnostics;
+        _diagnostics.IsDefault ? _diagnostics = _diagnosticsBuilder.GetImmutableArray() : _diagnostics;
 
     private FrozenDictionary<FunctionSymbol, BoundBlock>? _bodies;
     public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies => _bodies ??= _bodiesBuilder.ToFrozenDictionary();
@@ -35,37 +35,49 @@ internal sealed class Compiler
     private void Compile()
     {
         if (ModuleSymbol.Diagnostics.Any())
-            AppendDiagnostics(ModuleSymbol.Diagnostics);
+            _diagnosticsBuilder.AddRange(ModuleSymbol.Diagnostics);
+
+        foreach (var structureSymbol in ModuleSymbol.Structures)
+            CompileStructure(structureSymbol);
+
+        foreach (var structureSymbol in ModuleSymbol.Structures)
+            CompileFields(structureSymbol);
 
         foreach (var functionSymbol in ModuleSymbol.Functions)
-            CompileFunction((SourceFunctionSymbol)functionSymbol);
+            CompileFunction(functionSymbol);
+    }
+
+    private void CompileStructure(StructureSymbol structureSymbol)
+    {
+        if (structureSymbol.Diagnostics.Any())
+            _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
+    }
+
+    private void CompileFields(StructureSymbol structureSymbol)
+    {
+        foreach (var field in structureSymbol.Fields)
+        {
+            if (field.Diagnostics.Any())
+                _diagnosticsBuilder.AddRange(field.Diagnostics);
+        }
     }
 
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
         if (functionSymbol.Diagnostics.Any())
-            AppendDiagnostics(functionSymbol.Diagnostics);
-
-        if (functionSymbol.IsExtern)
-            return;
+            _diagnosticsBuilder.AddRange(functionSymbol.Diagnostics);
 
         var diagnostics = new DiagnosticList();
         var body = functionSymbol.Binder.BindBody(diagnostics);
         if (diagnostics.Any())
-            AppendDiagnostics(diagnostics);
+            _diagnosticsBuilder.AddRange(diagnostics);
+
+        foreach (var parameter in functionSymbol.Parameters)
+        {
+            if (parameter.Diagnostics.Any())
+                _diagnosticsBuilder.AddRange(parameter.Diagnostics);
+        }
 
         _bodiesBuilder.Add(functionSymbol, body);
-    }
-
-    private void AppendDiagnostics(DiagnosticList diagnostics)
-    {
-        foreach (var diagnostic in diagnostics)
-            _diagnosticsBuilder.Add(diagnostic);
-    }
-
-    private void AppendDiagnostics(ImmutableArray<Diagnostic> diagnostics)
-    {
-        foreach (var diagnostic in diagnostics)
-            _diagnosticsBuilder.Add(diagnostic);
     }
 }

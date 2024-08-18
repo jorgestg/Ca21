@@ -29,4 +29,7 @@ internal static class DiagnosticMessages
 
     public static string FunctionOnlyExpectsNArguments(FunctionSymbol function) =>
         $"`{function.Name}` only expects {function.Parameters.Length} argument(s)";
+
+    public const string FunctionMustHaveABody = "Non-extern functions must have a body";
+    public const string FunctionMustNotHaveABody = "Extern functions must not have a body";
 }

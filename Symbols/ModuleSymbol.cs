@@ -6,6 +6,11 @@ using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
+internal interface IModuleMemberSymbol
+{
+    ModuleSymbol ContainingModule { get; }
+}
+
 internal sealed class ModuleSymbol : Symbol
 {
     public ModuleSymbol(CompilationUnitContext context, string name)
@@ -14,47 +19,52 @@ internal sealed class ModuleSymbol : Symbol
         Name = name;
         Binder = new ModuleBinder(this);
 
-        Initialize(this, out var diagnostics, out var functions, out var memberMap);
-        Diagnostics = diagnostics;
-        Functions = functions;
-        MemberMap = memberMap;
+        var diagnosticsBuilder = new DiagnosticList();
+        var memberMapBuilder = new Dictionary<string, IModuleMemberSymbol>();
+
+        var topLevelStructures = context._Definitions.OfType<TopLevelStructureDefinitionContext>();
+        var structuresBuilder = new ArrayBuilder<StructureSymbol>(topLevelStructures.Count());
+        foreach (var structureContext in topLevelStructures)
+        {
+            var structureSymbol = new StructureSymbol(structureContext.Structure, this);
+            structuresBuilder.Add(structureSymbol);
+
+            if (!memberMapBuilder.TryAdd(structureSymbol.Name, structureSymbol))
+            {
+                diagnosticsBuilder.Add(
+                    structureContext.Structure.Name,
+                    DiagnosticMessages.NameIsAlreadyDefined(structureSymbol.Name)
+                );
+            }
+        }
+
+        var topLevelFunctions = context._Definitions.OfType<TopLevelFunctionDefinitionContext>();
+        var functionsBuilder = new ArrayBuilder<SourceFunctionSymbol>(topLevelFunctions.Count());
+        foreach (var functionContext in topLevelFunctions)
+        {
+            var functionSymbol = new SourceFunctionSymbol(functionContext.Function, this);
+            functionsBuilder.Add(functionSymbol);
+
+            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
+            {
+                diagnosticsBuilder.Add(
+                    functionContext.Function.Signature.Name,
+                    DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
+                );
+            }
+        }
+
+        Diagnostics = diagnosticsBuilder.GetImmutableArray();
+        Structures = structuresBuilder.MoveToImmutable();
+        Functions = functionsBuilder.MoveToImmutable();
+        MemberMap = memberMapBuilder.ToFrozenDictionary();
     }
 
     public override CompilationUnitContext Context { get; }
     public override Binder Binder { get; }
     public override string Name { get; }
-    public ImmutableArray<Diagnostic> Diagnostics { get; }
-    public ImmutableArray<FunctionSymbol> Functions { get; }
-    public FrozenDictionary<string, FunctionSymbol> MemberMap { get; }
-
-    private static void Initialize(
-        ModuleSymbol moduleSymbol,
-        out ImmutableArray<Diagnostic> diagnostics,
-        out ImmutableArray<FunctionSymbol> functions,
-        out FrozenDictionary<string, FunctionSymbol> memberMap
-    )
-    {
-        var diagnosticsBuilder = new DiagnosticList();
-        var functionsBuilder = new ArrayBuilder<FunctionSymbol>(moduleSymbol.Context._Functions.Count);
-        var memberMapBuilder = new Dictionary<string, FunctionSymbol>();
-        foreach (var functionContext in moduleSymbol.Context._Functions)
-        {
-            var functionSymbol = new SourceFunctionSymbol(functionContext, moduleSymbol);
-            functionsBuilder.Add(functionSymbol);
-
-            var signature = functionContext switch
-            {
-                TopLevelFunctionDefinitionContext c => c.Signature,
-                ExternFunctionDefinitionContext c => c.Signature,
-                _ => throw new InvalidOperationException()
-            };
-
-            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
-                diagnosticsBuilder.Add(signature.Name, DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name));
-        }
-
-        diagnostics = diagnosticsBuilder.DrainToImmutable();
-        functions = functionsBuilder.MoveToImmutable();
-        memberMap = memberMapBuilder.ToFrozenDictionary();
-    }
+    public override ImmutableArray<Diagnostic> Diagnostics { get; }
+    public ImmutableArray<StructureSymbol> Structures { get; }
+    public ImmutableArray<SourceFunctionSymbol> Functions { get; }
+    public FrozenDictionary<string, IModuleMemberSymbol> MemberMap { get; }
 }

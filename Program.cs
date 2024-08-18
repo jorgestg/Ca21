@@ -2,14 +2,13 @@
 using Ca21;
 using Ca21.Antlr;
 using Ca21.CodeGen;
-using Ca21.Sources;
 using Ca21.Symbols;
+using Ca21.Text;
 
 const string source = """
-    extern("js print") func print(s str);
-
-    export func main() {
-        print("Hello, World!");
+    struct StringView {
+        length int32,
+        bytes int32
     }
     """;
 

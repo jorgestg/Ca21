@@ -1,4 +1,4 @@
-namespace Ca21.Sources;
+namespace Ca21.Text;
 
 public sealed class SourceText(string fileName, ReadOnlyMemory<char> text)
 {
