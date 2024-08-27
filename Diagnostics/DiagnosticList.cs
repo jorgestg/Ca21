@@ -40,7 +40,7 @@ public sealed class DiagnosticList
     public void Add(Diagnostic item)
     {
         if (_count == Capacity)
-            Resize(Capacity == 0 ? 4 : Capacity * 2);
+            Resize(Capacity == 0 ? 1 : Capacity * 2);
 
         _diagnostics![_count++] = item;
     }

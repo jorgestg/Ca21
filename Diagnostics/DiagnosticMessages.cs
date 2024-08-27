@@ -32,4 +32,12 @@ internal static class DiagnosticMessages
 
     public const string FunctionMustHaveABody = "Non-extern functions must have a body";
     public const string FunctionMustNotHaveABody = "Extern functions must not have a body";
+
+    public static string NameIsNotAType(string name) => $"`{name}` is not a type";
+
+    public static string StructureDoesNotContainField(StructureSymbol structure, string fieldName) =>
+        $"`{structure.Name}` does not contain a field named `{fieldName}`";
+
+    public static string CycleDetected(string fieldName, StructureSymbol structure) =>
+        $"Cycle detected. The type of `{fieldName}` references `{structure.Name}` without indirection";
 }

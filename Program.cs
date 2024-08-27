@@ -6,9 +6,15 @@ using Ca21.Symbols;
 using Ca21.Text;
 
 const string source = """
-    struct StringView {
-        length int32,
-        bytes int32
+    struct Point {
+        x int32,
+        y int32
+    }
+
+    func main() {
+        let x = 42;
+        let y = 42;
+        let p = Point { x, y };
     }
     """;
 

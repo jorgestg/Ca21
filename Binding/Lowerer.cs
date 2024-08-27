@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Ca21.Binding;
 
 internal static class Lowerer

@@ -19,7 +19,7 @@ internal abstract class FunctionSymbol : Symbol
     {
         public override ParserRuleContext Context => ParserRuleContext.EMPTY;
         public override ImmutableArray<SourceParameterSymbol> Parameters => throw new InvalidOperationException();
-        public override TypeSymbol ReturnType => TypeSymbol.BadType;
+        public override TypeSymbol ReturnType => TypeSymbol.Missing;
         public override string Name => "???";
     }
 }
@@ -31,63 +31,66 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
         Context = context;
         Binder = new FunctionBinder(this);
         ContainingModule = module;
-
-        var parametersContext = Context.Signature.ParameterList?._Parameters;
-        if (parametersContext == null)
-        {
-            Parameters = [];
-            ParameterMap = FrozenDictionary<string, SourceParameterSymbol>.Empty;
-            return;
-        }
-
-        var parametersBuilder = new ArrayBuilder<SourceParameterSymbol>(parametersContext.Count);
-        var mapBuilder = new Dictionary<string, SourceParameterSymbol>();
-        foreach (var parameterContext in parametersContext)
-        {
-            var parameterSymbol = new SourceParameterSymbol(parameterContext, this);
-            if (!mapBuilder.TryAdd(parameterSymbol.Name, parameterSymbol))
-                _diagnostics.Add(parameterContext.Name, DiagnosticMessages.NameIsAlreadyDefined(parameterSymbol.Name));
-
-            parametersBuilder.Add(parameterSymbol);
-        }
-
-        Parameters = parametersBuilder.MoveToImmutable();
-        ParameterMap = mapBuilder.ToFrozenDictionary();
+        InitializeProperties();
     }
 
     public override FunctionDefinitionContext Context { get; }
 
     public override string Name => Context.Signature.Name.Text;
-    public override FunctionBinder Binder { get; }
 
     private TypeSymbol? _type;
     public override TypeSymbol Type => _type ??= new FunctionTypeSymbol(this);
 
-    private readonly DiagnosticList _diagnostics = new();
-    public override ImmutableArray<Diagnostic> Diagnostics => _diagnostics.GetImmutableArray();
+    private ImmutableArray<Diagnostic> _diagnostics;
+    public ImmutableArray<Diagnostic> Diagnostics
+    {
+        get
+        {
+            if (_diagnostics.IsDefault)
+                InitializeProperties();
 
-    public ModuleSymbol ContainingModule { get; }
+            return _diagnostics;
+        }
+    }
 
-    public override ImmutableArray<SourceParameterSymbol> Parameters { get; }
+    private ImmutableArray<SourceParameterSymbol> _parameters;
+    public override ImmutableArray<SourceParameterSymbol> Parameters
+    {
+        get
+        {
+            if (_parameters.IsDefault)
+                InitializeProperties();
+
+            return _parameters;
+        }
+    }
 
     private TypeSymbol? _returnType;
     public override TypeSymbol ReturnType
     {
         get
         {
-            if (_returnType != null)
-                return _returnType;
-
-            if (Context.Signature.ReturnType == null)
-                _returnType = TypeSymbol.Unit;
-            else
-                _returnType = Binder.BindType(Context.Signature.ReturnType, _diagnostics);
+            if (_returnType == null)
+                InitializeProperties();
 
             return _returnType;
         }
     }
 
-    public FrozenDictionary<string, SourceParameterSymbol> ParameterMap { get; }
+    public ModuleSymbol ContainingModule { get; }
+    public FunctionBinder Binder { get; }
+
+    private FrozenDictionary<string, SourceParameterSymbol>? _parameterMap;
+    public FrozenDictionary<string, SourceParameterSymbol> ParameterMap
+    {
+        get
+        {
+            if (_parameterMap == null)
+                InitializeProperties();
+
+            return _parameterMap;
+        }
+    }
 
     public bool IsExported => Context.ExportModifier != null;
 
@@ -95,4 +98,47 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
     public bool IsExtern => Context.ExternModifier != null;
 
     public string? ExternName => Context.ExternModifier.ExternName?.Text;
+
+    [MemberNotNull(nameof(_returnType), nameof(_parameterMap))]
+    private void InitializeProperties()
+    {
+        DiagnosticList? diagnostics = null;
+
+        var returnTypeContext = Context.Signature.ReturnType;
+        if (returnTypeContext == null)
+        {
+            _returnType = TypeSymbol.Unit;
+        }
+        else
+        {
+            diagnostics = new DiagnosticList();
+            _returnType = Binder.BindType(returnTypeContext, diagnostics);
+        }
+
+        var parametersContext = Context.Signature.ParameterList?._Parameters;
+        if (parametersContext == null)
+        {
+            _diagnostics = diagnostics?.GetImmutableArray() ?? [];
+            _parameters = [];
+            _parameterMap = FrozenDictionary<string, SourceParameterSymbol>.Empty;
+            return;
+        }
+
+        diagnostics ??= new DiagnosticList();
+        var parametersBuilder = new ArrayBuilder<SourceParameterSymbol>(parametersContext.Count);
+        var mapBuilder = new Dictionary<string, SourceParameterSymbol>();
+        foreach (var parameterContext in parametersContext)
+        {
+            var type = Binder.BindType(parameterContext.Type, diagnostics);
+            var parameterSymbol = new SourceParameterSymbol(parameterContext, this, type);
+            if (!mapBuilder.TryAdd(parameterSymbol.Name, parameterSymbol))
+                diagnostics.Add(parameterContext.Name, DiagnosticMessages.NameIsAlreadyDefined(parameterSymbol.Name));
+
+            parametersBuilder.Add(parameterSymbol);
+        }
+
+        _diagnostics = diagnostics.GetImmutableArray();
+        _parameters = parametersBuilder.MoveToImmutable();
+        _parameterMap = mapBuilder.ToFrozenDictionary();
+    }
 }

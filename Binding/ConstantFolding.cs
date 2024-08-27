@@ -6,7 +6,7 @@ internal static class ConstantFolding
 {
     public static BoundConstant Fold(BoundBinaryExpression binaryExpression)
     {
-        if (binaryExpression.Type == Symbols.TypeSymbol.BadType)
+        if (binaryExpression.Type == Symbols.TypeSymbol.Missing)
             return default;
 
         var leftConstant = binaryExpression.Left.ConstantValue;

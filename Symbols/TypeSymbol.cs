@@ -1,24 +1,38 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Antlr4.Runtime;
+using Ca21.Binding;
 using Ca21.Diagnostics;
 using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
+internal enum NativeType
+{
+    None,
+    Unit,
+    Int32,
+    Bool,
+    String
+}
+
 internal abstract class TypeSymbol : Symbol
 {
-    public static readonly TypeSymbol BadType = new NativeTypeSymbol("???");
-    public static readonly TypeSymbol Unit = new NativeTypeSymbol("unit");
-    public static readonly TypeSymbol Int32 = new NativeTypeSymbol("int32");
-    public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool");
-    public static readonly TypeSymbol String = new NativeTypeSymbol("string");
+    public static new readonly TypeSymbol Missing = new NativeTypeSymbol("???", NativeType.None);
+    public static readonly TypeSymbol Unit = new NativeTypeSymbol("unit", NativeType.Unit);
+    public static readonly TypeSymbol Int32 = new NativeTypeSymbol("int32", NativeType.Int32);
+    public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool", NativeType.Bool);
+    public static readonly TypeSymbol String = new NativeTypeSymbol("string", NativeType.String);
 
-    private sealed class NativeTypeSymbol(string name) : TypeSymbol
+    public virtual NativeType NativeType => NativeType.None;
+
+    private sealed class NativeTypeSymbol(string name, NativeType nativeType) : TypeSymbol
     {
         public override ParserRuleContext Context => throw new InvalidOperationException();
         public override string Name { get; } = name;
+        public override NativeType NativeType { get; } = nativeType;
     }
 }
 
@@ -86,37 +100,79 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
     public StructureSymbol(StructureDefinitionContext context, ModuleSymbol module)
     {
         Context = context;
+        Binder = new StructureBinder(this);
         ContainingModule = module;
-        if (context._Fields.Count == 0)
+    }
+
+    public override StructureDefinitionContext Context { get; }
+    public override string Name => Context.Name.Text;
+
+    public ModuleSymbol ContainingModule { get; }
+
+    private ImmutableArray<Diagnostic> _diagnostics;
+    public ImmutableArray<Diagnostic> Diagnostics
+    {
+        get
         {
-            Fields = [];
-            FieldMap = FrozenDictionary<string, FieldSymbol>.Empty;
+            if (_diagnostics.IsDefault)
+                CreateFields();
+
+            return _diagnostics;
+        }
+    }
+
+    public StructureBinder Binder { get; }
+
+    private ImmutableArray<FieldSymbol> _fields;
+    public ImmutableArray<FieldSymbol> Fields
+    {
+        get
+        {
+            if (_fields.IsDefault)
+                CreateFields();
+
+            return _fields;
+        }
+    }
+
+    private FrozenDictionary<string, FieldSymbol>? _fieldMap;
+    public FrozenDictionary<string, FieldSymbol> FieldMap
+    {
+        get
+        {
+            if (_fieldMap == null)
+                CreateFields();
+
+            return _fieldMap;
+        }
+    }
+
+    [MemberNotNull(nameof(_fieldMap))]
+    private void CreateFields()
+    {
+        if (Context._Fields.Count == 0)
+        {
+            _diagnostics = [];
+            _fields = [];
+            _fieldMap = FrozenDictionary<string, FieldSymbol>.Empty;
             return;
         }
 
         var diagnostics = new DiagnosticList();
-        var fieldsBuilder = new ArrayBuilder<FieldSymbol>(context._Fields.Count);
-        var mapBuilder = new Dictionary<string, FieldSymbol>(context._Fields.Count);
+        var fieldsBuilder = new ArrayBuilder<FieldSymbol>(Context._Fields.Count);
+        var mapBuilder = new Dictionary<string, FieldSymbol>(Context._Fields.Count);
         foreach (var fieldContext in Context._Fields)
         {
-            var fieldSymbol = new FieldSymbol(fieldContext, this);
+            var type = Binder.BindType(fieldContext.Type, diagnostics);
+            var fieldSymbol = new SourceFieldSymbol(fieldContext, this, type);
             if (!mapBuilder.TryAdd(fieldSymbol.Name, fieldSymbol))
                 diagnostics.Add(fieldContext.Name, DiagnosticMessages.NameIsAlreadyDefined(fieldSymbol.Name));
 
             fieldsBuilder.Add(fieldSymbol);
         }
 
-        Diagnostics = diagnostics.GetImmutableArray();
-        Fields = fieldsBuilder.MoveToImmutable();
-        FieldMap = mapBuilder.ToFrozenDictionary();
+        _diagnostics = diagnostics.GetImmutableArray();
+        _fields = fieldsBuilder.MoveToImmutable();
+        _fieldMap = mapBuilder.ToFrozenDictionary();
     }
-
-    public override StructureDefinitionContext Context { get; }
-    public override string Name => Context.Name.Text;
-    public override ImmutableArray<Diagnostic> Diagnostics { get; }
-
-    public ModuleSymbol ContainingModule { get; }
-
-    public ImmutableArray<FieldSymbol> Fields { get; }
-    public FrozenDictionary<string, FieldSymbol> FieldMap { get; }
 }

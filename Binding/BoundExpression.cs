@@ -26,8 +26,30 @@ internal sealed class BoundLiteralExpression(ParserRuleContext context, object v
     : BoundExpression(context)
 {
     public override TypeSymbol Type { get; } = type;
-    public override BoundConstant ConstantValue { get; } = new(value);
+    public override BoundConstant ConstantValue => new(Value);
     public object Value { get; } = value;
+}
+
+internal sealed class BoundStructureLiteralExpression(
+    ParserRuleContext context,
+    TypeSymbol structure,
+    ImmutableArray<BoundFieldInitializer> fieldInitializers
+) : BoundExpression(context)
+{
+    public override TypeSymbol Type => Structure;
+    public TypeSymbol Structure { get; } = structure;
+    public ImmutableArray<BoundFieldInitializer> FieldInitializers { get; } = fieldInitializers;
+}
+
+internal readonly struct BoundFieldInitializer(
+    ParserRuleContext context,
+    FieldSymbol field,
+    BoundExpression initializer
+)
+{
+    public ParserRuleContext Context { get; } = context;
+    public FieldSymbol Field { get; } = field;
+    public BoundExpression Value { get; } = initializer;
 }
 
 internal sealed class BoundCallExpression(

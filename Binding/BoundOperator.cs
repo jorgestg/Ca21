@@ -43,7 +43,7 @@ internal readonly struct BoundBinaryOperator
             }
         }
 
-        boundBinaryOperator = new BoundBinaryOperator(kind, operandType, TypeSymbol.BadType);
+        boundBinaryOperator = new BoundBinaryOperator(kind, operandType, TypeSymbol.Missing);
         return false;
     }
 }

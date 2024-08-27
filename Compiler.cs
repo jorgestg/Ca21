@@ -40,9 +40,6 @@ internal sealed class Compiler
         foreach (var structureSymbol in ModuleSymbol.Structures)
             CompileStructure(structureSymbol);
 
-        foreach (var structureSymbol in ModuleSymbol.Structures)
-            CompileFields(structureSymbol);
-
         foreach (var functionSymbol in ModuleSymbol.Functions)
             CompileFunction(functionSymbol);
     }
@@ -51,15 +48,6 @@ internal sealed class Compiler
     {
         if (structureSymbol.Diagnostics.Any())
             _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
-    }
-
-    private void CompileFields(StructureSymbol structureSymbol)
-    {
-        foreach (var field in structureSymbol.Fields)
-        {
-            if (field.Diagnostics.Any())
-                _diagnosticsBuilder.AddRange(field.Diagnostics);
-        }
     }
 
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
@@ -71,12 +59,6 @@ internal sealed class Compiler
         var body = functionSymbol.Binder.BindBody(diagnostics);
         if (diagnostics.Any())
             _diagnosticsBuilder.AddRange(diagnostics);
-
-        foreach (var parameter in functionSymbol.Parameters)
-        {
-            if (parameter.Diagnostics.Any())
-                _diagnosticsBuilder.AddRange(parameter.Diagnostics);
-        }
 
         _bodiesBuilder.Add(functionSymbol, body);
     }

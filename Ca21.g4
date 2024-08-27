@@ -39,7 +39,8 @@ parameterDefinition
     ;
 
 typeReference
-    : NativeType=typeKeyword #NativeTypeReference
+    : TypeKeyword=typeKeyword #KeywordTypeReference
+    | Name=Identifier #SimpleNameTypeReference
     ;
 
 typeKeyword
@@ -72,11 +73,17 @@ expressionOrBlock
 expression
     : Literal=literal #LiteralExpression
     | Name=Identifier #NameExpression
+    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)) '}' #StructureLiteralExpression
     | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
     | Assignee=expression '=' Value=expression #AssignmentExpression
+    ;
+
+fieldInitializer
+    : Name=Identifier '=' Value=expressionOrBlock #AssignmentFieldInitializer
+    | Name=Identifier #NameOnlyFieldInitializer
     ;
 
 argumentList

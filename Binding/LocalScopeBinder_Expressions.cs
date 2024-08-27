@@ -7,80 +7,8 @@ using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Binding;
 
-internal sealed class LocalScopeBinder(Binder parent) : Binder
+internal sealed partial class LocalScopeBinder
 {
-    private Dictionary<string, Symbol>? _locals;
-
-    public override Binder Parent { get; } = parent;
-
-    public override Symbol? Lookup(string name)
-    {
-        return _locals?.GetValueOrDefault(name) ?? Parent.Lookup(name);
-    }
-
-    public void Define(Symbol symbol)
-    {
-        _locals ??= new Dictionary<string, Symbol>();
-        _locals[symbol.Name] = symbol;
-    }
-
-    public BoundStatement BindStatement(StatementContext context, DiagnosticList diagnostics)
-    {
-        return context switch
-        {
-            LocalDeclarationStatementContext c => BindLocalDeclaration(c.Declaration, diagnostics),
-            WhileStatementContext c => BindWhileStatement(c, diagnostics),
-            ReturnStatementContext c => BindReturnStatement(c, diagnostics),
-            BlockStatementContext c => BindBlock(c.Block, diagnostics),
-            ExpressionStatementContext c => BindExpressionStatement(c.Expression, diagnostics),
-            _ => throw new UnreachableException()
-        };
-    }
-
-    private BoundLocalDeclaration BindLocalDeclaration(LocalDeclarationContext context, DiagnosticList diagnostics)
-    {
-        var initializer = BindExpressionOrBlock(context.Value, diagnostics);
-        var local = new SourceLocalSymbol(context, initializer.Type);
-        Define(local);
-        return new BoundLocalDeclaration(context, local, initializer);
-    }
-
-    private BoundWhileStatement BindWhileStatement(WhileStatementContext context, DiagnosticList diagnostics)
-    {
-        var condition = BindExpression(context.Condition, diagnostics);
-        TypeCheck(context, TypeSymbol.Bool, condition.Type, diagnostics);
-        var body = BindBlock(context.Body, diagnostics);
-        var continueIdentifier = new ControlBlockIdentifier("loop");
-        var breakIdentifier = new ControlBlockIdentifier("break");
-        return new BoundWhileStatement(context, condition, body, continueIdentifier, breakIdentifier);
-    }
-
-    private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)
-    {
-        var returnValue = BindExpressionOrBlock(context.Value, diagnostics);
-        TypeCheck(context, GetReturnType(), returnValue.Type, diagnostics);
-        return new BoundReturnStatement(context, returnValue);
-    }
-
-    private BoundExpressionStatement BindExpressionStatement(ExpressionContext context, DiagnosticList diagnostics)
-    {
-        var expression = BindExpression(context, diagnostics);
-        if (expression is not BoundAssignmentExpression and not BoundCallExpression)
-            diagnostics.Add(context, DiagnosticMessages.ExpressionCannotBeUsedAsStatement);
-
-        return new BoundExpressionStatement(context, expression);
-    }
-
-    private BoundExpression BindExpressionOrBlock(ExpressionOrBlockContext context, DiagnosticList diagnostics)
-    {
-        return context switch
-        {
-            BlockExpressionContext c => BindBlockExpression(c, diagnostics),
-            NonBlockExpressionContext c => BindExpression(c.Expression, diagnostics),
-            _ => throw new UnreachableException()
-        };
-    }
-
     private BoundBlockExpression BindBlockExpression(BlockExpressionContext context, DiagnosticList diagnostics)
     {
         var localScopeBinder = new LocalScopeBinder(this);
@@ -98,6 +26,7 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         {
             LiteralExpressionContext c => BindLiteral(c.Literal, diagnostics),
             NameExpressionContext c => BindNameExpression(c, diagnostics),
+            StructureLiteralExpressionContext c => BindStructureLiteralExpression(c, diagnostics),
             CallExpressionContext c => BindCallExpression(c, diagnostics),
             FactorExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             TermExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
@@ -131,6 +60,62 @@ internal sealed class LocalScopeBinder(Binder parent) : Binder
         }
 
         return new BoundNameExpression(context, referencedSymbol);
+    }
+
+    private BoundStructureLiteralExpression BindStructureLiteralExpression(
+        StructureLiteralExpressionContext context,
+        DiagnosticList diagnostics
+    )
+    {
+        var referencedType = BindType(context.Structure, diagnostics);
+        var structure = referencedType as StructureSymbol;
+        if (referencedType != TypeSymbol.Missing && structure == null)
+        {
+            diagnostics.Add(context.Structure, DiagnosticMessages.NameIsNotAType(context.Structure.GetText()));
+        }
+
+        var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
+        foreach (var fieldInitializerContext in context._Fields)
+        {
+            IToken name;
+            BoundExpression value;
+            switch (fieldInitializerContext)
+            {
+                case AssignmentFieldInitializerContext c:
+                    name = c.Name;
+                    value = BindExpressionOrBlock(c.Value, diagnostics);
+                    break;
+
+                case NameOnlyFieldInitializerContext c:
+                    name = c.Name;
+                    var referencedSymbol = Lookup(name.Text) ?? Symbol.Missing;
+                    if (referencedSymbol == Symbol.Missing)
+                        diagnostics.Add(name, DiagnosticMessages.NameNotFound(c.Name.Text));
+
+                    value = new BoundNameExpression(c, referencedSymbol);
+                    break;
+
+                default:
+                    throw new UnreachableException();
+            }
+
+            if (structure == null)
+                continue;
+
+            var field = structure.FieldMap.GetValueOrDefault(name.Text);
+            if (field == null)
+            {
+                field = FieldSymbol.Missing;
+                diagnostics.Add(name, DiagnosticMessages.StructureDoesNotContainField(structure, name.Text));
+            }
+
+            TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);
+
+            var fieldInitializer = new BoundFieldInitializer(context, field, value);
+            fieldInitializers.Add(fieldInitializer);
+        }
+
+        return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
     }
 
     private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)

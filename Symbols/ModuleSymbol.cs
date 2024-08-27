@@ -61,9 +61,9 @@ internal sealed class ModuleSymbol : Symbol
     }
 
     public override CompilationUnitContext Context { get; }
-    public override Binder Binder { get; }
     public override string Name { get; }
-    public override ImmutableArray<Diagnostic> Diagnostics { get; }
+    public ModuleBinder Binder { get; }
+    public ImmutableArray<Diagnostic> Diagnostics { get; }
     public ImmutableArray<StructureSymbol> Structures { get; }
     public ImmutableArray<SourceFunctionSymbol> Functions { get; }
     public FrozenDictionary<string, IModuleMemberSymbol> MemberMap { get; }

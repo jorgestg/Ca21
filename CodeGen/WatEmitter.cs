@@ -9,12 +9,12 @@ namespace Ca21.CodeGen;
 
 internal sealed class WatEmitter
 {
-    private readonly List<LocalSymbol> _locals = new(8);
-
     private readonly Dictionary<string, int> _stringLiterals = new(8);
     private int _lastOffset = 1;
 
+    private readonly List<LocalSymbol> _locals = new(8);
     private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
+
     private readonly IndentedTextWriter _writer = new(new StringWriter());
 
     private WatEmitter(ModuleSymbol moduleSymbol, FrozenDictionary<FunctionSymbol, BoundBlock> bodies)
@@ -49,14 +49,19 @@ internal sealed class WatEmitter
             return;
         }
 
-        var pagesNeeded = Math.Ceiling(
-            // Pages in WASM are 64 KB
-            _stringLiterals.Sum(pair => Encoding.UTF8.GetByteCount(pair.Key)) / (64.0 * 1024.0)
-        );
-
+        const int pageSize = 64 * 1024;
+        var pages = Math.Ceiling((double)_lastOffset / pageSize) + 1;
         _writer.Write("(memory (export \"memory\") ");
-        _writer.Write(pagesNeeded);
+        _writer.Write(pages);
         _writer.WriteLine(')');
+
+        _writer.Write("(global $data_end (i32.const ");
+        _writer.Write(_lastOffset);
+        _writer.WriteLine("))");
+
+        _writer.Write("(global $heap_start (i32.const ");
+        _writer.Write(pages * pageSize);
+        _writer.WriteLine("))");
 
         Span<byte> lengthBytes = stackalloc byte[4];
         foreach (var (stringLiteral, offset) in _stringLiterals)
@@ -185,12 +190,11 @@ internal sealed class WatEmitter
 
     private void EmitType(TypeSymbol typeSymbol)
     {
-        if (typeSymbol == TypeSymbol.Int32 || typeSymbol == TypeSymbol.String || typeSymbol == TypeSymbol.Bool)
+        if (typeSymbol.NativeType != NativeType.Unit)
+        {
             _writer.Write("i32");
-        else if (typeSymbol == TypeSymbol.Unit)
             return;
-        else
-            throw new UnreachableException();
+        }
     }
 
     private void EmitBlock(BoundBlock block)
@@ -312,6 +316,9 @@ internal sealed class WatEmitter
             case BoundNameExpression name:
                 EmitNameExpression(name);
                 break;
+            case BoundStructureLiteralExpression structureLiteral:
+                EmitStructureLiteralExpression(structureLiteral);
+                break;
             case BoundCallExpression call:
                 EmitCallExpression(call);
                 break;
@@ -323,6 +330,44 @@ internal sealed class WatEmitter
                 break;
             default:
                 throw new UnreachableException();
+        }
+    }
+
+    private void EmitStructureLiteralExpression(BoundStructureLiteralExpression structureLiteral)
+    {
+        _writer.Write();
+
+        var initializers = structureLiteral.FieldInitializers;
+        for (var i = initializers.Length - 1; i >= 0; i--)
+        {
+            _writer.Write("i32.const ");
+            _writer.WriteLine(i);
+            EmitExpression(initializers[i].Value);
+            _writer.WriteLine("i32.store");
+        }
+
+        _writer.Write();
+    }
+
+    private static int GetTypeSize(TypeSymbol typeSymbol)
+    {
+        return typeSymbol.NativeType switch
+        {
+            NativeType.Unit => 0,
+            NativeType.Bool => 1,
+            NativeType.Int32 => 4,
+            NativeType.String => 8,
+            NativeType.None => GetStructSize((StructureSymbol)typeSymbol),
+            _ => throw new UnreachableException()
+        };
+
+        static int GetStructSize(StructureSymbol structureSymbol)
+        {
+            var size = 0;
+            foreach (var field in structureSymbol.Fields)
+                size += GetTypeSize(field.Type);
+
+            return size;
         }
     }
 

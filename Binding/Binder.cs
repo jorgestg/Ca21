@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 using Antlr4.Runtime;
 using Ca21.Diagnostics;
 using Ca21.Symbols;
@@ -18,14 +17,7 @@ internal abstract class Binder
 
     public virtual TypeSymbol BindType(TypeReferenceContext context, DiagnosticList diagnostics)
     {
-        var nativeTypeReference = (NativeTypeReferenceContext)context;
-        return nativeTypeReference.NativeType.Keyword.Type switch
-        {
-            Int32Keyword => TypeSymbol.Int32,
-            BoolKeyword => TypeSymbol.Bool,
-            StrKeyword => TypeSymbol.String,
-            _ => throw new UnreachableException()
-        };
+        return Parent.BindType(context, diagnostics);
     }
 
     public BoundBlock BindBlock(BlockContext context, DiagnosticList diagnostics)
@@ -54,7 +46,7 @@ internal abstract class Binder
             return;
 
         // An error should be already reported in these cases
-        if (expected == TypeSymbol.BadType || actual == TypeSymbol.BadType)
+        if (expected == TypeSymbol.Missing || actual == TypeSymbol.Missing)
             return;
 
         diagnostics.Add(context, DiagnosticMessages.TypeMismatch(expected, actual));
