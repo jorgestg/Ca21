@@ -116,17 +116,14 @@ internal sealed partial class LocalScopeBinder
         if (left.Type == TypeSymbol.Missing)
             return new BoundAccessExpression(context, left, FieldSymbol.Missing);
 
-        if (left.Type is not StructureSymbol structureSymbol)
-        {
-            diagnostics.Add(context.Left, DiagnosticMessages.ValueOfTypeHasNoMembers(left.Type));
-            return new BoundAccessExpression(context, left, FieldSymbol.Missing);
-        }
-
-        if (!structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField))
+        if (
+            left.Type is not StructureSymbol structureSymbol ||
+            !structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField)
+        )
         {
             diagnostics.Add(
                 context.Right,
-                DiagnosticMessages.StructureDoesNotContainMember(structureSymbol, context.Right.Text)
+                DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text)
             );
 
             referencedField = FieldSymbol.Missing;
@@ -179,7 +176,7 @@ internal sealed partial class LocalScopeBinder
             if (field == null)
             {
                 field = FieldSymbol.Missing;
-                diagnostics.Add(name, DiagnosticMessages.StructureDoesNotContainMember(structure, name.Text));
+                diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(structure, name.Text));
             }
 
             TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);

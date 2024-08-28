@@ -6,12 +6,13 @@ using Ca21.Symbols;
 using Ca21.Text;
 
 const string source = """
-    struct A {
-        b B
-    }
+    extern("js print") func print(n int32);
 
-    struct B {
-        a A
+    struct Point { x int32, y int32 }
+    
+    func main() {
+        let p = Point { x = 4, y = 5 };
+        print(p.x);
     }
     """;
 

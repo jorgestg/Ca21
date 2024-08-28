@@ -35,11 +35,9 @@ internal static class DiagnosticMessages
 
     public static string NameIsNotAType(string name) => $"`{name}` is not a type";
 
-    public static string StructureDoesNotContainMember(StructureSymbol structure, string fieldName) =>
-        $"`{structure.Name}` does not contain member `{fieldName}`";
+    public static string TypeDoesNotContainMember(TypeSymbol type, string fieldName) =>
+        $"`{type.Name}` does not contain member `{fieldName}`";
 
     public static string CycleDetected(string fieldName, StructureSymbol structure) =>
         $"Cycle detected. The type of `{fieldName}` references `{structure.Name}` without indirection";
-
-    public static string ValueOfTypeHasNoMembers(TypeSymbol type) => $"Value of type `{type.Name}` has no members";
 }
