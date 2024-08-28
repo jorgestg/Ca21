@@ -25,7 +25,7 @@ internal static class DiagnosticMessages
 
     public const string ExpressionIsNotCallable = "Expression is not callable";
 
-    public static string ValueOfTypeIsNotCallable(TypeSymbol type) => $"Values of type `{type.Name}` are not callable";
+    public static string ValueOfTypeIsNotCallable(TypeSymbol type) => $"Value of type `{type.Name}` is not callable";
 
     public static string FunctionOnlyExpectsNArguments(FunctionSymbol function) =>
         $"`{function.Name}` only expects {function.Parameters.Length} argument(s)";
@@ -35,9 +35,11 @@ internal static class DiagnosticMessages
 
     public static string NameIsNotAType(string name) => $"`{name}` is not a type";
 
-    public static string StructureDoesNotContainField(StructureSymbol structure, string fieldName) =>
-        $"`{structure.Name}` does not contain a field named `{fieldName}`";
+    public static string StructureDoesNotContainMember(StructureSymbol structure, string fieldName) =>
+        $"`{structure.Name}` does not contain member `{fieldName}`";
 
     public static string CycleDetected(string fieldName, StructureSymbol structure) =>
         $"Cycle detected. The type of `{fieldName}` references `{structure.Name}` without indirection";
+
+    public static string ValueOfTypeHasNoMembers(TypeSymbol type) => $"Value of type `{type.Name}` has no members";
 }

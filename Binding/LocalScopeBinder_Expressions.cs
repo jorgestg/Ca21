@@ -26,8 +26,9 @@ internal sealed partial class LocalScopeBinder
         {
             LiteralExpressionContext c => BindLiteral(c.Literal, diagnostics),
             NameExpressionContext c => BindNameExpression(c, diagnostics),
-            StructureLiteralExpressionContext c => BindStructureLiteralExpression(c, diagnostics),
             CallExpressionContext c => BindCallExpression(c, diagnostics),
+            AccessExpressionContext c => BindAccessExpression(c, diagnostics),
+            StructureLiteralExpressionContext c => BindStructureLiteralExpression(c, diagnostics),
             FactorExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             TermExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             ComparisonExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
@@ -60,62 +61,6 @@ internal sealed partial class LocalScopeBinder
         }
 
         return new BoundNameExpression(context, referencedSymbol);
-    }
-
-    private BoundStructureLiteralExpression BindStructureLiteralExpression(
-        StructureLiteralExpressionContext context,
-        DiagnosticList diagnostics
-    )
-    {
-        var referencedType = BindType(context.Structure, diagnostics);
-        var structure = referencedType as StructureSymbol;
-        if (referencedType != TypeSymbol.Missing && structure == null)
-        {
-            diagnostics.Add(context.Structure, DiagnosticMessages.NameIsNotAType(context.Structure.GetText()));
-        }
-
-        var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
-        foreach (var fieldInitializerContext in context._Fields)
-        {
-            IToken name;
-            BoundExpression value;
-            switch (fieldInitializerContext)
-            {
-                case AssignmentFieldInitializerContext c:
-                    name = c.Name;
-                    value = BindExpressionOrBlock(c.Value, diagnostics);
-                    break;
-
-                case NameOnlyFieldInitializerContext c:
-                    name = c.Name;
-                    var referencedSymbol = Lookup(name.Text) ?? Symbol.Missing;
-                    if (referencedSymbol == Symbol.Missing)
-                        diagnostics.Add(name, DiagnosticMessages.NameNotFound(c.Name.Text));
-
-                    value = new BoundNameExpression(c, referencedSymbol);
-                    break;
-
-                default:
-                    throw new UnreachableException();
-            }
-
-            if (structure == null)
-                continue;
-
-            var field = structure.FieldMap.GetValueOrDefault(name.Text);
-            if (field == null)
-            {
-                field = FieldSymbol.Missing;
-                diagnostics.Add(name, DiagnosticMessages.StructureDoesNotContainField(structure, name.Text));
-            }
-
-            TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);
-
-            var fieldInitializer = new BoundFieldInitializer(context, field, value);
-            fieldInitializers.Add(fieldInitializer);
-        }
-
-        return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
     }
 
     private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)
@@ -163,6 +108,87 @@ internal sealed partial class LocalScopeBinder
         }
 
         return new BoundCallExpression(context, functionSymbol, arguments);
+    }
+
+    private BoundAccessExpression BindAccessExpression(AccessExpressionContext context, DiagnosticList diagnostics)
+    {
+        var left = BindExpression(context.Left, diagnostics);
+        if (left.Type == TypeSymbol.Missing)
+            return new BoundAccessExpression(context, left, FieldSymbol.Missing);
+
+        if (left.Type is not StructureSymbol structureSymbol)
+        {
+            diagnostics.Add(context.Left, DiagnosticMessages.ValueOfTypeHasNoMembers(left.Type));
+            return new BoundAccessExpression(context, left, FieldSymbol.Missing);
+        }
+
+        if (!structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField))
+        {
+            diagnostics.Add(
+                context.Right,
+                DiagnosticMessages.StructureDoesNotContainMember(structureSymbol, context.Right.Text)
+            );
+
+            referencedField = FieldSymbol.Missing;
+        }
+
+        return new BoundAccessExpression(context, left, referencedField);
+    }
+
+    private BoundStructureLiteralExpression BindStructureLiteralExpression(
+        StructureLiteralExpressionContext context,
+        DiagnosticList diagnostics
+    )
+    {
+        var referencedType = BindType(context.Structure, diagnostics);
+        var structure = referencedType as StructureSymbol;
+        if (referencedType != TypeSymbol.Missing && structure == null)
+        {
+            diagnostics.Add(context.Structure, DiagnosticMessages.NameIsNotAType(context.Structure.GetText()));
+        }
+
+        var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
+        foreach (var fieldInitializerContext in context._Fields)
+        {
+            IToken name;
+            BoundExpression value;
+            switch (fieldInitializerContext)
+            {
+                case AssignmentFieldInitializerContext c:
+                    name = c.Name;
+                    value = BindExpressionOrBlock(c.Value, diagnostics);
+                    break;
+
+                case NameOnlyFieldInitializerContext c:
+                    name = c.Name;
+                    var referencedSymbol = Lookup(name.Text) ?? Symbol.Missing;
+                    if (referencedSymbol == Symbol.Missing)
+                        diagnostics.Add(name, DiagnosticMessages.NameNotFound(c.Name.Text));
+
+                    value = new BoundNameExpression(c, referencedSymbol);
+                    break;
+
+                default:
+                    throw new UnreachableException();
+            }
+
+            if (structure == null)
+                continue;
+
+            var field = structure.FieldMap.GetValueOrDefault(name.Text);
+            if (field == null)
+            {
+                field = FieldSymbol.Missing;
+                diagnostics.Add(name, DiagnosticMessages.StructureDoesNotContainMember(structure, name.Text));
+            }
+
+            TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);
+
+            var fieldInitializer = new BoundFieldInitializer(context, field, value);
+            fieldInitializers.Add(fieldInitializer);
+        }
+
+        return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
     }
 
     private BoundBinaryExpression BindBinaryExpression(

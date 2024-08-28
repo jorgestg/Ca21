@@ -163,7 +163,7 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
         var mapBuilder = new Dictionary<string, FieldSymbol>(Context._Fields.Count);
         foreach (var fieldContext in Context._Fields)
         {
-            var type = Binder.BindType(fieldContext.Type, diagnostics);
+            var type = Binder.BindFieldType(fieldContext, diagnostics);
             var fieldSymbol = new SourceFieldSymbol(fieldContext, this, type);
             if (!mapBuilder.TryAdd(fieldSymbol.Name, fieldSymbol))
                 diagnostics.Add(fieldContext.Name, DiagnosticMessages.NameIsAlreadyDefined(fieldSymbol.Name));

@@ -1,8 +1,16 @@
+using Antlr4.Runtime;
 using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
 internal abstract class LocalSymbol : Symbol;
+
+internal sealed class SyntheticLocalSymbol(TypeSymbol type) : LocalSymbol
+{
+    public override ParserRuleContext Context => throw new InvalidOperationException();
+    public override string Name => throw new InvalidOperationException();
+    public override TypeSymbol Type { get; } = type;
+}
 
 internal sealed class SourceLocalSymbol(LocalDeclarationContext context, TypeSymbol type) : LocalSymbol
 {

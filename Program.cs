@@ -6,15 +6,12 @@ using Ca21.Symbols;
 using Ca21.Text;
 
 const string source = """
-    struct Point {
-        x int32,
-        y int32
+    struct A {
+        b B
     }
 
-    func main() {
-        let x = 42;
-        let y = 42;
-        let p = Point { x, y };
+    struct B {
+        a A
     }
     """;
 
@@ -44,6 +41,7 @@ if (compiler.Diagnostics.Any())
 }
 else
 {
-    var wat = WatEmitter.Emit(compiler.ModuleSymbol, compiler.Bodies);
-    Console.WriteLine(wat);
+    var writer = new StringWriter();
+    WatEmitter.Emit(compiler.ModuleSymbol, compiler.Bodies, writer);
+    Console.WriteLine(writer.ToString());
 }

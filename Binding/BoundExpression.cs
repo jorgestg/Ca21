@@ -30,6 +30,28 @@ internal sealed class BoundLiteralExpression(ParserRuleContext context, object v
     public object Value { get; } = value;
 }
 
+internal sealed class BoundCallExpression(
+    ParserRuleContext context,
+    FunctionSymbol function,
+    ImmutableArray<BoundExpression> arguments
+) : BoundExpression(context)
+{
+    public override TypeSymbol Type => Function.ReturnType;
+    public FunctionSymbol Function { get; } = function;
+    public ImmutableArray<BoundExpression> Arguments { get; } = arguments;
+}
+
+internal sealed class BoundAccessExpression(
+    ParserRuleContext context,
+    BoundExpression left,
+    FieldSymbol referencedField
+) : BoundExpression(context)
+{
+    public override TypeSymbol Type => ReferencedField.Type;
+    public BoundExpression Left { get; } = left;
+    public FieldSymbol ReferencedField { get; } = referencedField;
+}
+
 internal sealed class BoundStructureLiteralExpression(
     ParserRuleContext context,
     TypeSymbol structure,
@@ -50,17 +72,6 @@ internal readonly struct BoundFieldInitializer(
     public ParserRuleContext Context { get; } = context;
     public FieldSymbol Field { get; } = field;
     public BoundExpression Value { get; } = initializer;
-}
-
-internal sealed class BoundCallExpression(
-    ParserRuleContext context,
-    FunctionSymbol function,
-    ImmutableArray<BoundExpression> arguments
-) : BoundExpression(context)
-{
-    public override TypeSymbol Type => Function.ReturnType;
-    public FunctionSymbol Function { get; } = function;
-    public ImmutableArray<BoundExpression> Arguments { get; } = arguments;
 }
 
 internal sealed class BoundNameExpression(ParserRuleContext context, Symbol referencedSymbol) : BoundExpression(context)

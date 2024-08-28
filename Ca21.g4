@@ -73,8 +73,9 @@ expressionOrBlock
 expression
     : Literal=literal #LiteralExpression
     | Name=Identifier #NameExpression
-    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)) '}' #StructureLiteralExpression
     | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
+    | Left=expression '.' Right=Identifier #AccessExpression
+    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)) '}' #StructureLiteralExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
@@ -119,12 +120,13 @@ Integer: [0-9]+ ('_' [0-9]+)*;
 Identifier: [a-zA-Z_][a-zA-Z_0-9]*;
 
 // Symbols
+Semicolon: ';';
 Comma: ',';
 LeftParenthesis: '(';
 RightParenthesis: ')';
 LeftBrace: '{';
 RightBrace: '}';
-Semicolon: ';';
+Dot: '.';
 
 // Operators
 Star: '*';

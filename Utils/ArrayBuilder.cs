@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Ca21;
 
 /// <summary>
-/// A stack-allocated, fixed-size, non-shareable <see cref="ImmutableArray{T}"/> builder.
+/// A stack-allocated <see cref="ImmutableArray{T}"/> builder.
 /// </summary>
 internal ref struct ArrayBuilder<T>
 {

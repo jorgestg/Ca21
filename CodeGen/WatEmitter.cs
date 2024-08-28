@@ -9,29 +9,39 @@ namespace Ca21.CodeGen;
 
 internal sealed class WatEmitter
 {
-    private readonly Dictionary<string, int> _stringLiterals = new(8);
-    private int _lastOffset = 1;
+    private readonly IndentedTextWriter _writer;
 
+    private readonly Dictionary<string, int> _stringLiterals = new(8);
+    private int _lastLiteralOffset = 1;
+    private int _minimumStackSize;
+
+    private int _functionStackSize;
     private readonly List<LocalSymbol> _locals = new(8);
     private readonly Stack<ControlBlockIdentifier> _controlBlocks = new(8);
 
-    private readonly IndentedTextWriter _writer = new(new StringWriter());
-
-    private WatEmitter(ModuleSymbol moduleSymbol, FrozenDictionary<FunctionSymbol, BoundBlock> bodies)
+    private WatEmitter(
+        ModuleSymbol moduleSymbol,
+        FrozenDictionary<FunctionSymbol, BoundBlock> bodies,
+        TextWriter writer
+    )
     {
         ModuleSymbol = moduleSymbol;
         Bodies = bodies;
+
+        _writer = new IndentedTextWriter(writer);
     }
 
     public ModuleSymbol ModuleSymbol { get; }
     public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies { get; }
 
-    public static string Emit(ModuleSymbol moduleSymbol, FrozenDictionary<FunctionSymbol, BoundBlock> bodies)
+    public static void Emit(
+        ModuleSymbol moduleSymbol,
+        FrozenDictionary<FunctionSymbol, BoundBlock> bodies,
+        TextWriter writer
+    )
     {
-        var emitter = new WatEmitter(moduleSymbol, bodies);
+        var emitter = new WatEmitter(moduleSymbol, bodies, writer);
         emitter.EmitModule();
-        var stringWriter = (StringWriter)emitter._writer.InnerWriter;
-        return stringWriter.ToString();
     }
 
     private void EmitModule()
@@ -42,48 +52,58 @@ internal sealed class WatEmitter
         foreach (var functionSymbol in ModuleSymbol.Functions)
             EmitFunction(functionSymbol);
 
-        if (_stringLiterals.Count == 0)
+        const int pageSizeInBytes = 64 * 1024;
+        var pages = 0;
+
+        // Data section
+        if (_stringLiterals.Count > 0)
         {
-            _writer.Indent--;
-            _writer.Write(')');
-            return;
-        }
-
-        const int pageSize = 64 * 1024;
-        var pages = Math.Ceiling((double)_lastOffset / pageSize) + 1;
-        _writer.Write("(memory (export \"memory\") ");
-        _writer.Write(pages);
-        _writer.WriteLine(')');
-
-        _writer.Write("(global $data_end (i32.const ");
-        _writer.Write(_lastOffset);
-        _writer.WriteLine("))");
-
-        _writer.Write("(global $heap_start (i32.const ");
-        _writer.Write(pages * pageSize);
-        _writer.WriteLine("))");
-
-        Span<byte> lengthBytes = stackalloc byte[4];
-        foreach (var (stringLiteral, offset) in _stringLiterals)
-        {
-            var unquotedLiteral = stringLiteral.AsSpan().Trim('"');
-            _writer.Write("(data (i32.const ");
-            _writer.Write(offset);
-            _writer.Write(')');
-            _writer.Write(' ');
-            _writer.Write('"');
-
-            // Append the int32 length at the beginning of the string
-            var length = (uint)Encoding.UTF8.GetByteCount(unquotedLiteral);
-            BitConverter.TryWriteBytes(lengthBytes, length);
-            foreach (var @byte in lengthBytes)
+            Span<byte> lengthBytes = stackalloc byte[4];
+            foreach (var (stringLiteral, offset) in _stringLiterals)
             {
-                _writer.Write('\\');
-                _writer.Write(@byte.ToString("X2"));
+                var unquotedLiteral = stringLiteral.AsSpan().Trim('"');
+                _writer.Write("(data (i32.const ");
+                _writer.Write(offset);
+                _writer.Write(')');
+                _writer.Write(' ');
+                _writer.Write('"');
+
+                // Append the int32 length at the beginning of the string
+                var length = (uint)Encoding.UTF8.GetByteCount(unquotedLiteral);
+                BitConverter.TryWriteBytes(lengthBytes, length);
+                foreach (var @byte in lengthBytes)
+                {
+                    _writer.Write('\\');
+                    _writer.Write(@byte.ToString("X2"));
+                }
+
+                _writer.Write(unquotedLiteral);
+                _writer.Write('"');
+                _writer.WriteLine(')');
             }
 
-            _writer.Write(unquotedLiteral);
-            _writer.Write('"');
+            _writer.Write("(global $data_end i32 (i32.const ");
+            _writer.Write(_lastLiteralOffset);
+            _writer.Write(')');
+            _writer.WriteLine(')');
+
+            pages += (int)Math.Ceiling((double)_lastLiteralOffset / pageSizeInBytes);
+        }
+
+        if (_minimumStackSize > 0)
+        {
+            pages += (int)Math.Ceiling((double)_minimumStackSize / pageSizeInBytes);
+
+            _writer.Write("(global $stack_pointer i32 (i32.const ");
+            _writer.Write(pages * pageSizeInBytes - 1);
+            _writer.Write(')');
+            _writer.WriteLine(')');
+        }
+
+        if (pages > 0)
+        {
+            _writer.Write("(memory (export \"memory\") ");
+            _writer.Write(pages);
             _writer.WriteLine(')');
         }
 
@@ -128,22 +148,27 @@ internal sealed class WatEmitter
 
     private void EmitTopLevelFunction(SourceFunctionSymbol functionSymbol, BoundBlock body)
     {
-        _locals.Clear();
-
         EmitFunctionSignature(functionSymbol);
         _writer.WriteLine();
         _writer.Indent++;
 
-        var localDeclarations = body.Statements.OfType<BoundLocalDeclaration>();
-        if (localDeclarations.Any())
+        // Add stack pointer local
+        if (AllocatesOnTheStack(body))
+            _locals.Add(new SyntheticLocalSymbol(TypeSymbol.Int32));
+
+        foreach (var statement in body.Statements)
+        {
+            if (statement is BoundLocalDeclaration localDeclaration)
+                _locals.Add(localDeclaration.Local);
+        }
+
+        if (_locals.Count > 0)
         {
             _writer.Write("(local");
-            foreach (var localDeclaration in localDeclarations)
+            foreach (var local in _locals)
             {
-                _locals.Add(localDeclaration.Local);
-
                 _writer.Write(' ');
-                EmitType(localDeclaration.Local.Type);
+                EmitType(local.Type);
             }
 
             _writer.WriteLine(')');
@@ -152,6 +177,62 @@ internal sealed class WatEmitter
         EmitBlock(body);
         _writer.Indent--;
         _writer.WriteLine(')');
+
+        _minimumStackSize += _functionStackSize;
+        _locals.Clear();
+    }
+
+    private static bool AllocatesOnTheStack(BoundBlock body)
+    {
+        foreach (var statement in body.Statements)
+        {
+            switch (statement)
+            {
+                case BoundNopStatement:
+                case BoundControlBlockStartStatement:
+                case BoundControlBlockEndStatement:
+                case BoundGotoStatement:
+                    break;
+                case BoundConditionalGotoStatement conditionalGoto:
+                    if (IsStackAllocation(conditionalGoto.Condition))
+                        return true;
+
+                    break;
+                case BoundLocalDeclaration localDeclaration:
+                    if (localDeclaration.Initializer != null && IsStackAllocation(localDeclaration.Initializer))
+                        return true;
+
+                    break;
+                case BoundReturnStatement @return:
+                    if (@return.Value != null && IsStackAllocation(@return.Value))
+                        return true;
+
+                    break;
+                case BoundExpressionStatement expressionStatement:
+                    if (IsStackAllocation(expressionStatement.Expression))
+                        return true;
+
+                    break;
+                default:
+                    throw new UnreachableException();
+            }
+        }
+
+        return false;
+
+        static bool IsStackAllocation(BoundExpression expression)
+        {
+            return expression switch
+            {
+                BoundStructureLiteralExpression structureLiteral => true,
+                BoundLiteralExpression or BoundNameExpression => false,
+                BoundCallExpression call => call.Arguments.Any(IsStackAllocation),
+                BoundBinaryExpression binaryExpression
+                    => IsStackAllocation(binaryExpression.Left) || IsStackAllocation(binaryExpression.Right),
+                BoundAssignmentExpression assignment => IsStackAllocation(assignment.Value),
+                _ => throw new UnreachableException(),
+            };
+        }
     }
 
     private void EmitFunctionSignature(SourceFunctionSymbol functionSymbol)
@@ -160,8 +241,7 @@ internal sealed class WatEmitter
 
         if (functionSymbol.IsExported)
         {
-            _writer.Write(" (export ");
-            _writer.Write('"');
+            _writer.Write(" (export \"");
             _writer.Write(functionSymbol.Name);
             _writer.Write('"');
             _writer.Write(')');
@@ -226,9 +306,6 @@ internal sealed class WatEmitter
                 break;
             case BoundReturnStatement returnStatement:
                 EmitReturnStatement(returnStatement);
-                break;
-            case BoundBlock block:
-                EmitBlock(block);
                 break;
             case BoundExpressionStatement expressionStatement:
                 EmitExpression(expressionStatement.Expression);
@@ -316,11 +393,11 @@ internal sealed class WatEmitter
             case BoundNameExpression name:
                 EmitNameExpression(name);
                 break;
-            case BoundStructureLiteralExpression structureLiteral:
-                EmitStructureLiteralExpression(structureLiteral);
-                break;
             case BoundCallExpression call:
                 EmitCallExpression(call);
+                break;
+            case BoundStructureLiteralExpression structureLiteral:
+                EmitStructureLiteralExpression(structureLiteral);
                 break;
             case BoundBinaryExpression binaryExpression:
                 EmitBinaryExpression(binaryExpression);
@@ -330,44 +407,6 @@ internal sealed class WatEmitter
                 break;
             default:
                 throw new UnreachableException();
-        }
-    }
-
-    private void EmitStructureLiteralExpression(BoundStructureLiteralExpression structureLiteral)
-    {
-        _writer.Write();
-
-        var initializers = structureLiteral.FieldInitializers;
-        for (var i = initializers.Length - 1; i >= 0; i--)
-        {
-            _writer.Write("i32.const ");
-            _writer.WriteLine(i);
-            EmitExpression(initializers[i].Value);
-            _writer.WriteLine("i32.store");
-        }
-
-        _writer.Write();
-    }
-
-    private static int GetTypeSize(TypeSymbol typeSymbol)
-    {
-        return typeSymbol.NativeType switch
-        {
-            NativeType.Unit => 0,
-            NativeType.Bool => 1,
-            NativeType.Int32 => 4,
-            NativeType.String => 8,
-            NativeType.None => GetStructSize((StructureSymbol)typeSymbol),
-            _ => throw new UnreachableException()
-        };
-
-        static int GetStructSize(StructureSymbol structureSymbol)
-        {
-            var size = 0;
-            foreach (var field in structureSymbol.Fields)
-                size += GetTypeSize(field.Type);
-
-            return size;
         }
     }
 
@@ -384,9 +423,9 @@ internal sealed class WatEmitter
             }
             else
             {
-                _stringLiterals.Add(str, _lastOffset);
-                _writer.WriteLine(_lastOffset);
-                _lastOffset += Encoding.UTF8.GetByteCount(str.AsSpan().Trim('"'));
+                _stringLiterals.Add(str, _lastLiteralOffset);
+                _writer.WriteLine(_lastLiteralOffset);
+                _lastLiteralOffset += Encoding.UTF8.GetByteCount(str.AsSpan().Trim('"'));
             }
         }
         else if (literal.Type == TypeSymbol.Int32 || literal.Type == TypeSymbol.Bool)
@@ -426,6 +465,55 @@ internal sealed class WatEmitter
 
         _writer.Write("call ");
         EmitSymbolReference(call.Function);
+    }
+
+    private void EmitStructureLiteralExpression(BoundStructureLiteralExpression structureLiteral)
+    {
+        _functionStackSize += GetTypeSize(structureLiteral.Type);
+
+        _writer.WriteLine("global.get $stack_pointer");
+        _writer.WriteLine("local.tee 0");
+
+        var initializers = structureLiteral.FieldInitializers;
+        var offset = 0;
+        for (var i = initializers.Length - 1; i >= 0; i--)
+        {
+            var initializer = initializers[i];
+            offset += GetTypeSize(initializer.Field.Type);
+
+            _writer.Write("i32.const ");
+            _writer.WriteLine(offset);
+            _writer.WriteLine("i32.sub");
+            _writer.WriteLine("local.tee 0");
+            EmitExpression(initializer.Value);
+            _writer.WriteLine("i32.store");
+            _writer.WriteLine("local.get 0");
+        }
+
+        _writer.WriteLine("global.set $stack_pointer");
+        _writer.WriteLine("local.get 0");
+    }
+
+    private static int GetTypeSize(TypeSymbol typeSymbol)
+    {
+        return typeSymbol.NativeType switch
+        {
+            NativeType.Unit => 0,
+            NativeType.Bool => 1,
+            NativeType.Int32 => 4,
+            NativeType.String => 8,
+            NativeType.None => GetStructSize((StructureSymbol)typeSymbol),
+            _ => throw new UnreachableException()
+        };
+
+        static int GetStructSize(StructureSymbol structureSymbol)
+        {
+            var size = 0;
+            foreach (var field in structureSymbol.Fields)
+                size += GetTypeSize(field.Type);
+
+            return size;
+        }
     }
 
     private void EmitBinaryExpression(BoundBinaryExpression binaryExpression)
