@@ -4,7 +4,7 @@ using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
-internal abstract class BoundExpression(ParserRuleContext context)
+internal abstract class BoundExpression(ParserRuleContext context) : BoundNode
 {
     public ParserRuleContext Context { get; } = context;
     public abstract TypeSymbol Type { get; }
@@ -17,6 +17,7 @@ internal sealed class BoundBlockExpression(
     BoundExpression? tailExpression
 ) : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.BlockExpression;
     public override TypeSymbol Type => TailExpression?.Type ?? TypeSymbol.Unit;
     public ImmutableArray<BoundStatement> Statements { get; } = statements;
     public BoundExpression? TailExpression { get; } = tailExpression;
@@ -25,6 +26,7 @@ internal sealed class BoundBlockExpression(
 internal sealed class BoundLiteralExpression(ParserRuleContext context, object value, TypeSymbol type)
     : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.LiteralExpression;
     public override TypeSymbol Type { get; } = type;
     public override BoundConstant ConstantValue => new(Value);
     public object Value { get; } = value;
@@ -36,6 +38,7 @@ internal sealed class BoundCallExpression(
     ImmutableArray<BoundExpression> arguments
 ) : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.CallExpression;
     public override TypeSymbol Type => Function.ReturnType;
     public FunctionSymbol Function { get; } = function;
     public ImmutableArray<BoundExpression> Arguments { get; } = arguments;
@@ -47,6 +50,7 @@ internal sealed class BoundAccessExpression(
     FieldSymbol referencedField
 ) : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.AccessExpression;
     public override TypeSymbol Type => ReferencedField.Type;
     public BoundExpression Left { get; } = left;
     public FieldSymbol ReferencedField { get; } = referencedField;
@@ -58,6 +62,7 @@ internal sealed class BoundStructureLiteralExpression(
     ImmutableArray<BoundFieldInitializer> fieldInitializers
 ) : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.StructureLiteralExpression;
     public override TypeSymbol Type => Structure;
     public TypeSymbol Structure { get; } = structure;
     public ImmutableArray<BoundFieldInitializer> FieldInitializers { get; } = fieldInitializers;
@@ -76,6 +81,7 @@ internal readonly struct BoundFieldInitializer(
 
 internal sealed class BoundNameExpression(ParserRuleContext context, Symbol referencedSymbol) : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.NameExpression;
     public override TypeSymbol Type => ReferencedSymbol.Type;
     public Symbol ReferencedSymbol { get; } = referencedSymbol;
 }
@@ -96,6 +102,7 @@ internal sealed class BoundBinaryExpression : BoundExpression
         ConstantValue = ConstantFolding.Fold(this);
     }
 
+    public override BoundNodeKind Kind => BoundNodeKind.BinaryExpression;
     public override TypeSymbol Type => Operator.ResultType;
     public override BoundConstant ConstantValue { get; }
     public BoundExpression Left { get; }
@@ -106,6 +113,7 @@ internal sealed class BoundBinaryExpression : BoundExpression
 internal sealed class BoundAssignmentExpression(ParserRuleContext context, Symbol assignee, BoundExpression value)
     : BoundExpression(context)
 {
+    public override BoundNodeKind Kind => BoundNodeKind.AssignmentExpression;
     public override TypeSymbol Type => TypeSymbol.Unit;
     public Symbol Assignee { get; } = assignee;
     public BoundExpression Value { get; } = value;

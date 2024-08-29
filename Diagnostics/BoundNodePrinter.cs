@@ -20,11 +20,8 @@ internal sealed class BoundNodePrinter(TextWriter writer)
     {
         switch (node)
         {
-            case BoundControlBlockStartStatement n:
+            case BoundLabelStatement n:
                 WalkControlBlockStartStatement(n);
-                break;
-            case BoundControlBlockEndStatement n:
-                WalkControlBlockEndStatement(n);
                 break;
             case BoundGotoStatement n:
                 WalkGotoStatement(n);
@@ -160,24 +157,12 @@ internal sealed class BoundNodePrinter(TextWriter writer)
         _writer.WriteLine(node.Target.Name);
     }
 
-    private void WalkControlBlockStartStatement(BoundControlBlockStartStatement node)
+    private void WalkControlBlockStartStatement(BoundLabelStatement node)
     {
-        _writer.Write(nameof(BoundControlBlockStartStatement));
+        _writer.Write(nameof(BoundLabelStatement));
         _writer.Write(' ');
         _writer.Write('@');
-        _writer.Write(node.ControlBlockIdentifier.Name);
-        _writer.Write(' ');
-        _writer.Write(nameof(node.IsLoop));
-        _writer.Write('=');
-        _writer.WriteLine(node.IsLoop);
-    }
-
-    private void WalkControlBlockEndStatement(BoundControlBlockEndStatement node)
-    {
-        _writer.Write(nameof(BoundControlBlockEndStatement));
-        _writer.Write(' ');
-        _writer.Write('@');
-        _writer.WriteLine(node.ControlBlockIdentifier.Name);
+        _writer.Write(node.Label.Name);
     }
 
     private void WalkExpression(BoundExpression node)

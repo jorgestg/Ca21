@@ -12,9 +12,9 @@ internal sealed class ControlFlowGraph
 
     private sealed class BasicBlock()
     {
-        public List<BasicBlockEdge> Incoming { get; set; } = new();
+        public List<BasicBlockEdge> Incoming { get; } = new();
         public List<BoundStatement> Statements { get; } = new();
-        public List<BasicBlockEdge> Outgoing { get; set; } = new();
+        public List<BasicBlockEdge> Outgoing { get; } = new();
     }
 
     private ControlFlowGraph(BasicBlock entry, BasicBlock exit, List<BasicBlock> blocks, List<BasicBlockEdge> edges)
@@ -54,9 +54,9 @@ internal sealed class ControlFlowGraph
         var statements = new List<BoundStatement>();
         foreach (var statement in block.Statements)
         {
-            switch (statement)
+            switch (statement.Kind)
             {
-                case BoundControlBlockStartStatement:
+                case BoundNodeKind.LabelStatement:
                 {
                     if (statements.Count > 0)
                     {
@@ -71,9 +71,9 @@ internal sealed class ControlFlowGraph
                 }
 
                 // Gotos and returns end blocks
-                case BoundConditionalGotoStatement:
-                case BoundReturnStatement:
-                case BoundGotoStatement:
+                case BoundNodeKind.ConditionalGotoStatement:
+                case BoundNodeKind.ReturnStatement:
+                case BoundNodeKind.GotoStatement:
                 {
                     statements.Add(statement);
                     var basicBlock = new BasicBlock();
@@ -83,9 +83,8 @@ internal sealed class ControlFlowGraph
                     break;
                 }
 
-                case BoundControlBlockEndStatement:
-                case BoundExpressionStatement:
-                case BoundLocalDeclaration:
+                case BoundNodeKind.ExpressionStatement:
+                case BoundNodeKind.LocalDeclaration:
                 {
                     statements.Add(statement);
                     break;
@@ -119,12 +118,12 @@ internal sealed class ControlFlowGraph
 
         Connect(edges, entryBlock, basicBlocks[0]);
 
-        var idToBasicBlock = new Dictionary<ControlBlockIdentifier, BasicBlock>();
+        var idToBasicBlock = new Dictionary<BoundLabel, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
         {
             var firstStatement = basicBlock.Statements.FirstOrDefault();
-            if (firstStatement is BoundControlBlockStartStatement controlBlockStart)
-                idToBasicBlock.Add(controlBlockStart.ControlBlockIdentifier, basicBlock);
+            if (firstStatement?.Kind == BoundNodeKind.LabelStatement)
+                idToBasicBlock.Add(((BoundLabelStatement)firstStatement).Label, basicBlock);
         }
 
         for (var i = 0; i < basicBlocks.Count; i++)
@@ -132,32 +131,34 @@ internal sealed class ControlFlowGraph
             var currentBlock = basicBlocks[i];
             var nextBlock = i + 1 < basicBlocks.Count ? basicBlocks[i + 1] : exitBlock;
             var lastStatement = currentBlock.Statements[^1];
-            switch (lastStatement)
+            switch (lastStatement.Kind)
             {
-                case BoundConditionalGotoStatement conditionalGotoStatement:
+                case BoundNodeKind.ConditionalGotoStatement:
                 {
+                    var conditionalGotoStatement = (BoundConditionalGotoStatement)lastStatement;
                     var targetBlock = idToBasicBlock[conditionalGotoStatement.Target];
                     Connect(edges, currentBlock, targetBlock);
                     Connect(edges, currentBlock, nextBlock);
                     break;
                 }
 
-                case BoundReturnStatement:
+                case BoundNodeKind.ReturnStatement:
                 {
                     Connect(edges, currentBlock, exitBlock);
                     break;
                 }
 
-                case BoundGotoStatement gotoStatement:
+                case BoundNodeKind.GotoStatement:
                 {
+                    var gotoStatement = (BoundGotoStatement)lastStatement;
                     var targetBlock = idToBasicBlock[gotoStatement.Target];
                     Connect(edges, currentBlock, targetBlock);
                     break;
                 }
 
-                case BoundControlBlockStartStatement:
-                case BoundLocalDeclaration:
-                case BoundExpressionStatement:
+                case BoundNodeKind.LabelStatement:
+                case BoundNodeKind.LocalDeclaration:
+                case BoundNodeKind.ExpressionStatement:
                 {
                     Connect(edges, currentBlock, nextBlock);
                     break;

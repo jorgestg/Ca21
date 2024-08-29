@@ -49,8 +49,8 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
         var condition = BindExpression(context.Condition, diagnostics);
         TypeCheck(context, TypeSymbol.Bool, condition.Type, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
-        var continueIdentifier = new ControlBlockIdentifier("loop");
-        var breakIdentifier = new ControlBlockIdentifier("break");
+        var continueIdentifier = new BoundLabel("loop");
+        var breakIdentifier = new BoundLabel("break");
         return new BoundWhileStatement(context, condition, body, continueIdentifier, breakIdentifier);
     }
 

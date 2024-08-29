@@ -1,10 +1,12 @@
+using System.Collections.Immutable;
+
 namespace Ca21.Binding;
 
 internal static class Lowerer
 {
     public static BoundBlock Lower(BoundBlock block)
     {
-        ArrayBuilder<BoundStatement> statements = default;
+        var statements = default(ArrayBuilder<BoundStatement>);
         for (var i = 0; i < block.Statements.Length; i++)
         {
             var statement = block.Statements[i];
@@ -13,14 +15,19 @@ internal static class Lowerer
             {
                 statements = new ArrayBuilder<BoundStatement>(block.Statements.Length);
                 for (var j = 0; j < i; j++)
+                {
+                    if (statement.Kind == BoundNodeKind.NopStatement)
+                        continue;
+
                     statements.Add(block.Statements[j]);
+                }
             }
 
-            if (!statements.IsDefault)
-                statements.Add(loweredStatement);
+            if (statement.Kind != BoundNodeKind.NopStatement)
+                statements.TryAdd(loweredStatement);
         }
 
-        var result = statements.IsDefault ? block : new BoundBlock(block.Context, statements.MoveToImmutable());
+        var result = statements.IsDefault ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
         return Flatten(result);
     }
 
@@ -35,7 +42,7 @@ internal static class Lowerer
             for (var i = 0; i < block.Statements.Length; i++)
             {
                 var statement = block.Statements[i];
-                if (statement is not BoundBlock b)
+                if (statement.Kind is not BoundNodeKind.Block and not BoundNodeKind.NopStatement)
                 {
                     statements.TryAdd(statement);
                     continue;
@@ -48,19 +55,19 @@ internal static class Lowerer
                         statements.Add(block.Statements[j]);
                 }
 
-                FlattenCore(b, ref statements);
+                FlattenCore((BoundBlock)statement, ref statements);
             }
         }
     }
 
     private static BoundStatement LowerStatement(BoundStatement statement)
     {
-        return statement switch
+        return statement.Kind switch
         {
-            BoundBlock b => Lower(b),
-            BoundLocalDeclaration d => LowerLocalDeclaration(d),
-            BoundWhileStatement w => LowerWhileStatement(w),
-            BoundReturnStatement r => LowerReturnStatement(r),
+            BoundNodeKind.Block => Lower((BoundBlock)statement),
+            BoundNodeKind.LocalDeclaration => LowerLocalDeclaration((BoundLocalDeclaration)statement),
+            BoundNodeKind.WhileStatement => LowerWhileStatement((BoundWhileStatement)statement),
+            BoundNodeKind.ReturnStatement => LowerReturnStatement((BoundReturnStatement)statement),
             _ => statement,
         };
     }
@@ -70,11 +77,11 @@ internal static class Lowerer
         var loweredInitializer =
             localDeclaration.Initializer == null ? null : LowerExpression(localDeclaration.Initializer);
 
-        if (loweredInitializer is BoundBlockExpression blockExpression)
+        if (loweredInitializer?.Kind == BoundNodeKind.BlockExpression)
         {
             return LowerBlockExpression(
                 localDeclaration,
-                blockExpression,
+                (BoundBlockExpression)loweredInitializer,
                 static (originalStatement, tail) =>
                 {
                     var localDeclaration = (BoundLocalDeclaration)originalStatement;
@@ -94,57 +101,35 @@ internal static class Lowerer
         if (loweredCondition.ConstantValue.HasValue && (bool)loweredCondition.ConstantValue.Value == false)
             return new BoundNopStatement(whileStatement.Context);
 
-        // block $break
-        //   loop $loop
-        //     <check>
-        //     br.false $break
-        //     <code>
-        //     br $loop
-        //   end
-        // end
-        var statements = new ArrayBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 6);
-        var breakBlock = new BoundControlBlockStartStatement(whileStatement.Context, whileStatement.BreakIdentifier);
-        var loopBlock = new BoundControlBlockStartStatement(
-            whileStatement.Context,
-            whileStatement.ContinueIdentifier,
-            isLoop: true
+        // continue: jumpIfFalse <condition> break
+        // <body>
+        // goto continue
+        // break: ...
+        var statements = new ArrayBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 4);
+        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.ContinueLabel));
+        statements.Add(
+            new BoundConditionalGotoStatement(
+                whileStatement.Context,
+                whileStatement.Condition,
+                whileStatement.BreakLabel,
+                branchIfFalse: true
+            )
         );
 
-        var check = new BoundConditionalGotoStatement(
-            whileStatement.Context,
-            whileStatement.Condition,
-            whileStatement.BreakIdentifier,
-            branchIfFalse: true
-        );
-
-        statements.Add(breakBlock);
-        statements.Add(loopBlock);
-        statements.Add(check);
-
-        foreach (var statement in whileStatement.Body.Statements)
-        {
-            var loweredStatement = LowerStatement(statement);
-            statements.Add(loweredStatement);
-        }
-
-        var gotoLoop = new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueIdentifier);
-        var loopEnd = new BoundControlBlockEndStatement(whileStatement.Context, whileStatement.ContinueIdentifier);
-        var exitEnd = new BoundControlBlockEndStatement(whileStatement.Context, whileStatement.BreakIdentifier);
-        statements.Add(gotoLoop);
-        statements.Add(loopEnd);
-        statements.Add(exitEnd);
-
-        return new BoundBlock(whileStatement.Context, statements.MoveToImmutable());
+        LowerStatementsToBuilder(whileStatement.Body.Statements, ref statements);
+        statements.Add(new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel));
+        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.BreakLabel));
+        return new BoundBlock(whileStatement.Context, statements.DrainToImmutable());
     }
 
     private static BoundStatement LowerReturnStatement(BoundReturnStatement returnStatement)
     {
         var loweredValue = returnStatement.Value == null ? null : LowerExpression(returnStatement.Value);
-        if (loweredValue is BoundBlockExpression blockExpression)
+        if (loweredValue?.Kind == BoundNodeKind.BlockExpression)
         {
             return LowerBlockExpression(
                 returnStatement,
-                blockExpression,
+                (BoundBlockExpression)loweredValue,
                 static (originalStatement, tail) => new BoundReturnStatement(originalStatement.Context, tail)
             );
         }
@@ -160,9 +145,11 @@ internal static class Lowerer
         Func<BoundStatement, BoundExpression?, BoundStatement> statementFactory
     )
     {
+        var statements = new ArrayBuilder<BoundStatement>(blockExpression.Statements.Length + 1);
+        LowerStatementsToBuilder(blockExpression.Statements, ref statements);
         var tail = blockExpression.TailExpression == null ? null : LowerExpression(blockExpression.TailExpression);
-        var statement = statementFactory(originalStatement, tail);
-        return new BoundBlock(originalStatement.Context, [.. blockExpression.Statements, statement]);
+        statements.Add(statementFactory(originalStatement, tail));
+        return new BoundBlock(originalStatement.Context, statements.DrainToImmutable());
     }
 
     private static BoundExpression LowerExpression(BoundExpression expression)
@@ -170,5 +157,18 @@ internal static class Lowerer
         return expression.ConstantValue.HasValue
             ? new BoundLiteralExpression(expression.Context, expression.ConstantValue.Value, expression.Type)
             : expression;
+    }
+
+    private static void LowerStatementsToBuilder(
+        ImmutableArray<BoundStatement> statements,
+        ref ArrayBuilder<BoundStatement> builder
+    )
+    {
+        foreach (var statement in statements)
+        {
+            var lowerStatement = LowerStatement(statement);
+            if (lowerStatement.Kind != BoundNodeKind.NopStatement)
+                builder.Add(lowerStatement);
+        }
     }
 }
