@@ -38,6 +38,6 @@ internal static class DiagnosticMessages
     public static string TypeDoesNotContainMember(TypeSymbol type, string fieldName) =>
         $"`{type.Name}` does not contain member `{fieldName}`";
 
-    public static string CycleDetected(string fieldName, StructureSymbol structure) =>
-        $"Cycle detected. The type of `{fieldName}` references `{structure.Name}` without indirection";
+    public static string CycleDetected(SourceFieldSymbol field) =>
+        $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingType.Name}`";
 }

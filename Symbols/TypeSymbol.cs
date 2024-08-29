@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Antlr4.Runtime;
@@ -109,15 +110,19 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
 
     public ModuleSymbol ContainingModule { get; }
 
-    private ImmutableArray<Diagnostic> _diagnostics;
+    /// <summary>
+    /// Cycle check status: Not started = 0, Running = 1, Done = 2
+    /// </summary>
+    private int _cycleCheckStatus;
+    private readonly DiagnosticList _diagnostics = new();
     public ImmutableArray<Diagnostic> Diagnostics
     {
         get
         {
-            if (_diagnostics.IsDefault)
-                CreateFields();
+            if (_cycleCheckStatus == 0)
+                CheckForCycles();
 
-            return _diagnostics;
+            return _diagnostics.GetImmutableArray();
         }
     }
 
@@ -152,27 +157,45 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
     {
         if (Context._Fields.Count == 0)
         {
-            _diagnostics = [];
             _fields = [];
             _fieldMap = FrozenDictionary<string, FieldSymbol>.Empty;
             return;
         }
 
-        var diagnostics = new DiagnosticList();
         var fieldsBuilder = new ArrayBuilder<FieldSymbol>(Context._Fields.Count);
         var mapBuilder = new Dictionary<string, FieldSymbol>(Context._Fields.Count);
         foreach (var fieldContext in Context._Fields)
         {
-            var type = Binder.BindFieldType(fieldContext, diagnostics);
+            var type = Binder.BindType(fieldContext.Type, _diagnostics);
             var fieldSymbol = new SourceFieldSymbol(fieldContext, this, type);
             if (!mapBuilder.TryAdd(fieldSymbol.Name, fieldSymbol))
-                diagnostics.Add(fieldContext.Name, DiagnosticMessages.NameIsAlreadyDefined(fieldSymbol.Name));
+                _diagnostics.Add(fieldContext.Name, DiagnosticMessages.NameIsAlreadyDefined(fieldSymbol.Name));
 
             fieldsBuilder.Add(fieldSymbol);
         }
 
-        _diagnostics = diagnostics.GetImmutableArray();
         _fields = fieldsBuilder.MoveToImmutable();
         _fieldMap = mapBuilder.ToFrozenDictionary();
+    }
+
+    private void CheckForCycles(FieldSymbol? source = null)
+    {
+        // If this method got called while we're checking for cycles, means we've found a cycle.
+        if (_cycleCheckStatus == 1)
+        {
+            Debug.Assert(source != null);
+            _diagnostics.Add(source.Context, DiagnosticMessages.CycleDetected((SourceFieldSymbol)source));
+            return;
+        }
+
+        _cycleCheckStatus = 1;
+
+        foreach (var field in Fields)
+        {
+            if (field.Type is StructureSymbol structure)
+                structure.CheckForCycles(field);
+        }
+
+        _cycleCheckStatus = 2;
     }
 }
