@@ -35,14 +35,18 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
 
         var boundBody = BindBlock(context.Body, diagnostics);
         var loweredBody = Lowerer.Lower(boundBody);
-        if (_functionSymbol.ReturnType == TypeSymbol.Unit)
+        var cfg = ControlFlowGraph.Create(loweredBody);
+        if (_functionSymbol.ReturnType != TypeSymbol.Unit && !cfg.AllPathsReturn())
+            diagnostics.Add(_functionSymbol.Context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
+
+        var statements = cfg.GetReachableStatements(out var unreachableStatements);
+        if (unreachableStatements.Length == 0)
             return loweredBody;
 
-        var cfg = ControlFlowGraph.Create(loweredBody);
-        if (!cfg.AllPathsReturn())
-            diagnostics.Add(context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
+        foreach (var unreachableStatement in unreachableStatements)
+            diagnostics.Add(unreachableStatement.Context, DiagnosticMessages.StatementIsUnreachable);
 
-        return loweredBody;
+        return new BoundBlock(_functionSymbol.Context.Body, statements);
     }
 
     public override TypeSymbol GetReturnType() => _functionSymbol.ReturnType;

@@ -35,8 +35,6 @@ public sealed class DiagnosticList
         }
     }
 
-    public bool Any() => _count > 0;
-
     public void Add(Diagnostic item)
     {
         if (_count == Capacity)

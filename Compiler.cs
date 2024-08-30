@@ -18,9 +18,7 @@ internal sealed class Compiler
 
     public ModuleSymbol ModuleSymbol { get; }
 
-    private ImmutableArray<Diagnostic> _diagnostics;
-    public ImmutableArray<Diagnostic> Diagnostics =>
-        _diagnostics.IsDefault ? _diagnostics = _diagnosticsBuilder.GetImmutableArray() : _diagnostics;
+    public ImmutableArray<Diagnostic> Diagnostics => _diagnosticsBuilder.GetImmutableArray();
 
     private FrozenDictionary<FunctionSymbol, BoundBlock>? _bodies;
     public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies => _bodies ??= _bodiesBuilder.ToFrozenDictionary();
@@ -28,38 +26,31 @@ internal sealed class Compiler
     public static Compiler Compile(ModuleSymbol moduleSymbol)
     {
         var compiler = new Compiler(moduleSymbol);
-        compiler.Compile();
+        compiler.CompileModule();
         return compiler;
     }
 
-    private void Compile()
+    private void CompileModule()
     {
-        if (ModuleSymbol.Diagnostics.Any())
-            _diagnosticsBuilder.AddRange(ModuleSymbol.Diagnostics);
+        _diagnosticsBuilder.AddRange(ModuleSymbol.Diagnostics);
 
         foreach (var structureSymbol in ModuleSymbol.Structures)
-            CompileStructure(structureSymbol);
+            _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
 
         foreach (var functionSymbol in ModuleSymbol.Functions)
             CompileFunction(functionSymbol);
     }
 
-    private void CompileStructure(StructureSymbol structureSymbol)
-    {
-        if (structureSymbol.Diagnostics.Any())
-            _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
-    }
-
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
-        if (functionSymbol.Diagnostics.Any())
-            _diagnosticsBuilder.AddRange(functionSymbol.Diagnostics);
+        _diagnosticsBuilder.AddRange(functionSymbol.Diagnostics);
 
         var diagnostics = new DiagnosticList();
         var body = functionSymbol.Binder.BindBody(diagnostics);
-        if (diagnostics.Any())
-            _diagnosticsBuilder.AddRange(diagnostics);
+        if (functionSymbol.IsExtern)
+            return;
 
+        _diagnosticsBuilder.AddRange(diagnostics);
         _bodiesBuilder.Add(functionSymbol, body);
     }
 }
