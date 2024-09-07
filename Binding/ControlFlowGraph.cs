@@ -1,43 +1,21 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
-using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
 internal sealed class ControlFlowGraph
 {
-    private sealed class BasicBlockEdge(BasicBlock from, BasicBlock to)
-    {
-        public BasicBlock From { get; } = from;
-        public BasicBlock To { get; } = to;
-    }
-
-    private sealed class BasicBlock()
-    {
-        public List<BasicBlockEdge> Incoming { get; } = new();
-        public List<BoundStatement> Statements { get; } = new();
-        public List<BasicBlockEdge> Outgoing { get; } = new();
-    }
-
-    private ControlFlowGraph(
-        BoundBlock body,
-        BasicBlock entry,
-        BasicBlock exit,
-        List<BasicBlock> blocks,
-        List<BasicBlockEdge> edges
-    )
+    private ControlFlowGraph(BoundBlock body, BasicBlock entry, BasicBlock exit, ImmutableArray<BasicBlock> blocks)
     {
         Body = body;
         Entry = entry;
         Exit = exit;
         Blocks = blocks;
-        Edges = edges;
     }
 
     private BasicBlock Entry { get; }
     private BasicBlock Exit { get; }
-    private List<BasicBlock> Blocks { get; }
-    private List<BasicBlockEdge> Edges { get; }
+    private ImmutableArray<BasicBlock> Blocks { get; }
 
     public BoundBlock Body { get; }
 
@@ -53,17 +31,38 @@ internal sealed class ControlFlowGraph
         return true;
     }
 
-    public ImmutableArray<BoundStatement> GetReachableStatements(
-        out ImmutableArray<BoundStatement> unreachableStatements
-    )
+    public bool IsStartOfLoop(BoundLabelStatement statement)
     {
-        if (Blocks.Sum(block => block.Statements.Count) == Body.Statements.Length)
+        foreach (var block in Blocks)
         {
-            unreachableStatements = [];
-            return Body.Statements;
+            // We only check the first statement because LabelStatements start new blocks
+            if (block.Statements.Count > 0 && block.Statements[0] == statement)
+            {
+                if (block.Statements[^1].Kind != BoundNodeKind.GotoStatement)
+                    return false;
+
+                var blockStartLabel = ((BoundLabelStatement)block.Statements[0]).Label;
+                var blockExitLabel = ((BoundGotoStatement)block.Statements[^1]).Target;
+                return blockStartLabel == blockExitLabel;
+            }
         }
 
-        var reachableStatementSet = new HashSet<BoundStatement>(Body.Statements.Length);
+        throw new ArgumentException(
+            "Statement is not inside ControlFlowGraph.Body or is unreachable",
+            nameof(statement)
+        );
+    }
+
+    public ControlFlowGraph Trim(out ImmutableArray<BoundStatement> trimmedStatements)
+    {
+        var reachableStatementCount = Blocks.Sum(block => block.Statements.Count);
+        if (reachableStatementCount == Body.Statements.Length)
+        {
+            trimmedStatements = [];
+            return this;
+        }
+
+        var reachableStatementSet = new HashSet<BoundStatement>(reachableStatementCount);
         foreach (var block in Blocks)
         {
             foreach (var statement in block.Statements)
@@ -84,14 +83,46 @@ internal sealed class ControlFlowGraph
             unreachableStatementsBuilder.Add(statement);
         }
 
-        unreachableStatements = unreachableStatementsBuilder.MoveToImmutable();
-        return reachableStatements.MoveToImmutable();
+        trimmedStatements = unreachableStatementsBuilder.MoveToImmutable();
+        return new ControlFlowGraph(
+            new BoundBlock(Body.Context, reachableStatements.MoveToImmutable()),
+            Entry,
+            Exit,
+            Blocks
+        );
     }
 
     public static ControlFlowGraph Create(BoundBlock body)
     {
+        if (body.Statements.Length == 0)
+        {
+            var entryBlock = new BasicBlock();
+            entryBlock.Outgoing.Capacity = 1;
+
+            var exitBlock = new BasicBlock();
+            exitBlock.Incoming.Capacity = 1;
+
+            var edge = new BasicBlockEdge(entryBlock, exitBlock);
+            entryBlock.Outgoing.Add(edge);
+            exitBlock.Incoming.Add(edge);
+            return new ControlFlowGraph(body, entryBlock, exitBlock, [entryBlock, exitBlock]);
+        }
+
         var basicBlocks = CreateBasicBlocks(body);
         return ConnectBlocks(body, basicBlocks);
+    }
+
+    private sealed class BasicBlockEdge(BasicBlock from, BasicBlock to)
+    {
+        public BasicBlock From { get; } = from;
+        public BasicBlock To { get; } = to;
+    }
+
+    private sealed class BasicBlock()
+    {
+        public List<BasicBlockEdge> Incoming { get; } = new();
+        public List<BoundStatement> Statements { get; } = new();
+        public List<BasicBlockEdge> Outgoing { get; } = new();
     }
 
     private static List<BasicBlock> CreateBasicBlocks(BoundBlock body)
@@ -155,23 +186,16 @@ internal sealed class ControlFlowGraph
 
     private static ControlFlowGraph ConnectBlocks(BoundBlock body, List<BasicBlock> basicBlocks)
     {
-        var edges = new List<BasicBlockEdge>();
         var entryBlock = new BasicBlock();
         var exitBlock = new BasicBlock();
 
         if (basicBlocks.Count == 0)
         {
-            edges.Capacity = 1;
-            Connect(edges, entryBlock, exitBlock);
-
-            basicBlocks.Capacity = 2;
-            basicBlocks.Add(entryBlock);
-            basicBlocks.Add(exitBlock);
-
-            return new ControlFlowGraph(body, entryBlock, exitBlock, basicBlocks, edges);
+            Connect(entryBlock, exitBlock);
+            return new ControlFlowGraph(body, entryBlock, exitBlock, [entryBlock, exitBlock]);
         }
 
-        Connect(edges, entryBlock, basicBlocks[0]);
+        Connect(entryBlock, basicBlocks[0]);
 
         var idToBasicBlock = new Dictionary<BoundLabel, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
@@ -192,14 +216,14 @@ internal sealed class ControlFlowGraph
                 {
                     var conditionalGotoStatement = (BoundConditionalGotoStatement)lastStatement;
                     var targetBlock = idToBasicBlock[conditionalGotoStatement.Target];
-                    Connect(edges, currentBlock, targetBlock);
-                    Connect(edges, currentBlock, nextBlock);
+                    Connect(currentBlock, targetBlock);
+                    Connect(currentBlock, nextBlock);
                     break;
                 }
 
                 case BoundNodeKind.ReturnStatement:
                 {
-                    Connect(edges, currentBlock, exitBlock);
+                    Connect(currentBlock, exitBlock);
                     break;
                 }
 
@@ -207,7 +231,7 @@ internal sealed class ControlFlowGraph
                 {
                     var gotoStatement = (BoundGotoStatement)lastStatement;
                     var targetBlock = idToBasicBlock[gotoStatement.Target];
-                    Connect(edges, currentBlock, targetBlock);
+                    Connect(currentBlock, targetBlock);
                     break;
                 }
 
@@ -216,7 +240,7 @@ internal sealed class ControlFlowGraph
                 case BoundNodeKind.LocalDeclaration:
                 case BoundNodeKind.ExpressionStatement:
                 {
-                    Connect(edges, currentBlock, nextBlock);
+                    Connect(currentBlock, nextBlock);
                     break;
                 }
 
@@ -235,7 +259,6 @@ internal sealed class ControlFlowGraph
             foreach (var edge in basicBlock.Outgoing)
             {
                 edge.To.Incoming.Remove(edge);
-                edges.Remove(edge);
             }
 
             basicBlocks.Remove(basicBlock);
@@ -247,14 +270,13 @@ internal sealed class ControlFlowGraph
         basicBlocks.Insert(0, entryBlock);
         basicBlocks.Add(exitBlock);
 
-        return new ControlFlowGraph(body, entryBlock, exitBlock, basicBlocks, edges);
+        return new ControlFlowGraph(body, entryBlock, exitBlock, basicBlocks.ToImmutableArray());
 
-        static void Connect(List<BasicBlockEdge> edges, BasicBlock from, BasicBlock to)
+        static void Connect(BasicBlock from, BasicBlock to)
         {
             var edge = new BasicBlockEdge(from, to);
             from.Outgoing.Add(edge);
             to.Incoming.Add(edge);
-            edges.Add(edge);
         }
     }
 }

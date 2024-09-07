@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
@@ -10,7 +9,6 @@ namespace Ca21;
 internal ref struct ArrayBuilder<T>
 {
     private T[] _array;
-    private T[]? _rentedArray;
 
     public ArrayBuilder(int capacity)
     {
@@ -31,12 +29,8 @@ internal ref struct ArrayBuilder<T>
     {
         if (_array.Length == Count)
         {
-            if (_rentedArray != null)
-                ArrayPool<T>.Shared.Return(_rentedArray);
-
             var newCapacity = _array.Length == 0 ? 4 : _array.Length * 2;
-            _rentedArray = ArrayPool<T>.Shared.Rent(newCapacity);
-            _array = _rentedArray;
+            Array.Resize(ref _array, newCapacity);
         }
 
         _array[Count++] = value;
@@ -53,19 +47,10 @@ internal ref struct ArrayBuilder<T>
     public ImmutableArray<T> DrainToImmutable()
     {
         ImmutableArray<T> immutableArray;
-        if (_array.Length == Count && _rentedArray == null)
-        {
+        if (_array.Length == Count)
             immutableArray = ImmutableCollectionsMarshal.AsImmutableArray(_array);
-        }
         else
-        {
             immutableArray = ImmutableArray.Create(_array, 0, Count);
-            if (_rentedArray != null)
-            {
-                ArrayPool<T>.Shared.Return(_rentedArray);
-                _rentedArray = null;
-            }
-        }
 
         _array = [];
         Count = 0;
@@ -74,7 +59,7 @@ internal ref struct ArrayBuilder<T>
 
     public ImmutableArray<T> MoveToImmutable()
     {
-        if (_array.Length != Count || _rentedArray != null)
+        if (_array.Length != Count)
             throw new InvalidOperationException("Can only move when Count matches Capacity.");
 
         var immutableArray = ImmutableCollectionsMarshal.AsImmutableArray(_array);

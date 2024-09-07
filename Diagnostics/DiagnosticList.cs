@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
@@ -11,7 +10,6 @@ namespace Ca21.Diagnostics;
 public sealed class DiagnosticList
 {
     private Diagnostic[]? _diagnostics;
-    private Diagnostic[]? _rentedArray;
     private int _count;
 
     public int Count => _count;
@@ -38,7 +36,7 @@ public sealed class DiagnosticList
     public void Add(Diagnostic item)
     {
         if (_count == Capacity)
-            Resize(Capacity == 0 ? 1 : Capacity * 2);
+            Array.Resize(ref _diagnostics, Capacity == 0 ? 1 : Capacity * 2);
 
         _diagnostics![_count++] = item;
     }
@@ -65,19 +63,10 @@ public sealed class DiagnosticList
         if (_diagnostics == null)
             return _immutableArray = [];
 
-        if (_rentedArray == null && _count == Capacity)
+        if (_count == Capacity)
             return _immutableArray = ImmutableCollectionsMarshal.AsImmutableArray(_diagnostics);
 
         return _immutableArray = ImmutableArray.Create(_diagnostics, 0, _count);
-    }
-
-    private void Resize(int newCapacity)
-    {
-        if (_rentedArray != null)
-            ArrayPool<Diagnostic>.Shared.Return(_rentedArray);
-
-        _rentedArray = ArrayPool<Diagnostic>.Shared.Rent(newCapacity);
-        _diagnostics = _rentedArray;
     }
 
     public Enumerator GetEnumerator() => new(this);

@@ -14,7 +14,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
         return _functionSymbol.ParameterMap.GetValueOrDefault(name) ?? Parent.Lookup(name);
     }
 
-    public BoundBlock BindBody(DiagnosticList diagnostics)
+    public ControlFlowGraph? BindBody(DiagnosticList diagnostics)
     {
         var context = _functionSymbol.Context;
         if (context.Body == null)
@@ -27,7 +27,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
                 );
             }
 
-            return new BoundBlock(context, []);
+            return null;
         }
 
         if (_functionSymbol.IsExtern)
@@ -39,14 +39,14 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
         if (_functionSymbol.ReturnType != TypeSymbol.Unit && !cfg.AllPathsReturn())
             diagnostics.Add(_functionSymbol.Context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
 
-        var statements = cfg.GetReachableStatements(out var unreachableStatements);
+        cfg = cfg.Trim(out var unreachableStatements);
         if (unreachableStatements.Length == 0)
-            return loweredBody;
+            return cfg;
 
         foreach (var unreachableStatement in unreachableStatements)
             diagnostics.Add(unreachableStatement.Context, DiagnosticMessages.StatementIsUnreachable);
 
-        return new BoundBlock(_functionSymbol.Context.Body, statements);
+        return cfg;
     }
 
     public override TypeSymbol GetReturnType() => _functionSymbol.ReturnType;

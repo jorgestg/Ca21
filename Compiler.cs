@@ -9,7 +9,7 @@ namespace Ca21;
 internal sealed class Compiler
 {
     private readonly DiagnosticList _diagnosticsBuilder = new();
-    private readonly Dictionary<FunctionSymbol, BoundBlock> _bodiesBuilder = new();
+    private readonly Dictionary<SourceFunctionSymbol, ControlFlowGraph> _bodiesBuilder = new();
 
     private Compiler(ModuleSymbol moduleSymbol)
     {
@@ -20,8 +20,9 @@ internal sealed class Compiler
 
     public ImmutableArray<Diagnostic> Diagnostics => _diagnosticsBuilder.GetImmutableArray();
 
-    private FrozenDictionary<FunctionSymbol, BoundBlock>? _bodies;
-    public FrozenDictionary<FunctionSymbol, BoundBlock> Bodies => _bodies ??= _bodiesBuilder.ToFrozenDictionary();
+    private FrozenDictionary<SourceFunctionSymbol, ControlFlowGraph>? _bodies;
+    public FrozenDictionary<SourceFunctionSymbol, ControlFlowGraph> Bodies =>
+        _bodies ??= _bodiesBuilder.ToFrozenDictionary();
 
     public static Compiler Compile(ModuleSymbol moduleSymbol)
     {
@@ -43,14 +44,11 @@ internal sealed class Compiler
 
     private void CompileFunction(SourceFunctionSymbol functionSymbol)
     {
-        _diagnosticsBuilder.AddRange(functionSymbol.Diagnostics);
-
-        var diagnostics = new DiagnosticList();
-        var body = functionSymbol.Binder.BindBody(diagnostics);
-        if (functionSymbol.IsExtern)
+        var cfg = functionSymbol.Binder.BindBody(_diagnosticsBuilder);
+        if (cfg == null)
             return;
 
-        _diagnosticsBuilder.AddRange(diagnostics);
-        _bodiesBuilder.Add(functionSymbol, body);
+        _diagnosticsBuilder.AddRange(functionSymbol.Diagnostics);
+        _bodiesBuilder.Add(functionSymbol, cfg);
     }
 }
