@@ -1,27 +1,32 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Ca21.Binding;
 
 internal sealed class ControlFlowGraph
 {
-    private ControlFlowGraph(BoundBlock body, BasicBlock entry, BasicBlock exit, ImmutableArray<BasicBlock> blocks)
+    private readonly ImmutableArray<BasicBlock> _blocks;
+
+    private ControlFlowGraph(
+        BoundBlock originalBody,
+        ImmutableArray<BoundStatement> body,
+        ImmutableArray<BasicBlock> blocks
+    )
     {
-        Body = body;
-        Entry = entry;
-        Exit = exit;
-        Blocks = blocks;
+        _blocks = blocks;
+
+        OriginalBody = originalBody;
+        Statements = body;
     }
 
-    private BasicBlock Entry { get; }
-    private BasicBlock Exit { get; }
-    private ImmutableArray<BasicBlock> Blocks { get; }
-
-    public BoundBlock Body { get; }
+    public BoundBlock OriginalBody { get; }
+    public ImmutableArray<BoundStatement> Statements { get; }
 
     public bool AllPathsReturn()
     {
-        foreach (var edge in Exit.Incoming)
+        var exit = _blocks[^1];
+        foreach (var edge in exit.Incoming)
         {
             var lastStatement = edge.From.Statements.LastOrDefault();
             if (lastStatement?.Kind != BoundNodeKind.ReturnStatement)
@@ -33,9 +38,9 @@ internal sealed class ControlFlowGraph
 
     public bool IsStartOfLoop(BoundLabelStatement statement)
     {
-        foreach (var block in Blocks)
+        foreach (var block in _blocks)
         {
-            // We only check the first statement because LabelStatements start new blocks
+            // We only check the first statement because LabelStatements always start new blocks
             if (block.Statements.Count > 0 && block.Statements[0] == statement)
             {
                 if (block.Statements[^1].Kind != BoundNodeKind.GotoStatement)
@@ -53,43 +58,24 @@ internal sealed class ControlFlowGraph
         );
     }
 
-    public ControlFlowGraph Trim(out ImmutableArray<BoundStatement> trimmedStatements)
+    public ImmutableArray<BoundStatement> GetUnreachableStatements()
     {
-        var reachableStatementCount = Blocks.Sum(block => block.Statements.Count);
-        if (reachableStatementCount == Body.Statements.Length)
-        {
-            trimmedStatements = [];
-            return this;
-        }
+        if (Statements.Length == OriginalBody.Statements.Length)
+            return [];
 
-        var reachableStatementSet = new HashSet<BoundStatement>(reachableStatementCount);
-        foreach (var block in Blocks)
-        {
-            foreach (var statement in block.Statements)
-                reachableStatementSet.Add(statement);
-        }
-
-        var unreachableStatementCount = Body.Statements.Length - reachableStatementSet.Count;
+        var statementsAsArray = ImmutableCollectionsMarshal.AsArray(Statements)!;
+        var statementSet = new HashSet<BoundStatement>(statementsAsArray);
+        var unreachableStatementCount = OriginalBody.Statements.Length - statementSet.Count;
         var unreachableStatementsBuilder = new ArrayBuilder<BoundStatement>(unreachableStatementCount);
-        var reachableStatements = new ArrayBuilder<BoundStatement>(reachableStatementSet.Count);
-        foreach (var statement in Body.Statements)
+        foreach (var statement in OriginalBody.Statements)
         {
-            if (reachableStatementSet.Contains(statement))
-            {
-                reachableStatements.Add(statement);
+            if (statementSet.Contains(statement))
                 continue;
-            }
 
             unreachableStatementsBuilder.Add(statement);
         }
 
-        trimmedStatements = unreachableStatementsBuilder.MoveToImmutable();
-        return new ControlFlowGraph(
-            new BoundBlock(Body.Context, reachableStatements.MoveToImmutable()),
-            Entry,
-            Exit,
-            Blocks
-        );
+        return unreachableStatementsBuilder.MoveToImmutable();
     }
 
     public static ControlFlowGraph Create(BoundBlock body)
@@ -105,7 +91,7 @@ internal sealed class ControlFlowGraph
             var edge = new BasicBlockEdge(entryBlock, exitBlock);
             entryBlock.Outgoing.Add(edge);
             exitBlock.Incoming.Add(edge);
-            return new ControlFlowGraph(body, entryBlock, exitBlock, [entryBlock, exitBlock]);
+            return new ControlFlowGraph(body, [], [entryBlock, exitBlock]);
         }
 
         var basicBlocks = CreateBasicBlocks(body);
@@ -192,7 +178,7 @@ internal sealed class ControlFlowGraph
         if (basicBlocks.Count == 0)
         {
             Connect(entryBlock, exitBlock);
-            return new ControlFlowGraph(body, entryBlock, exitBlock, [entryBlock, exitBlock]);
+            return new ControlFlowGraph(body, [], [entryBlock, exitBlock]);
         }
 
         Connect(entryBlock, basicBlocks[0]);
@@ -257,9 +243,7 @@ internal sealed class ControlFlowGraph
                 continue;
 
             foreach (var edge in basicBlock.Outgoing)
-            {
                 edge.To.Incoming.Remove(edge);
-            }
 
             basicBlocks.Remove(basicBlock);
 
@@ -270,7 +254,15 @@ internal sealed class ControlFlowGraph
         basicBlocks.Insert(0, entryBlock);
         basicBlocks.Add(exitBlock);
 
-        return new ControlFlowGraph(body, entryBlock, exitBlock, basicBlocks.ToImmutableArray());
+        var statementCount = basicBlocks.Sum(block => block.Statements.Count);
+        var statementsBuilder = new ArrayBuilder<BoundStatement>(statementCount);
+        foreach (var block in basicBlocks)
+        {
+            foreach (var statement in block.Statements)
+                statementsBuilder.Add(statement);
+        }
+
+        return new ControlFlowGraph(body, statementsBuilder.MoveToImmutable(), basicBlocks.ToImmutableArray());
 
         static void Connect(BasicBlock from, BasicBlock to)
         {

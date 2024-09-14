@@ -39,7 +39,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
         if (_functionSymbol.ReturnType != TypeSymbol.Unit && !cfg.AllPathsReturn())
             diagnostics.Add(_functionSymbol.Context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
 
-        cfg = cfg.Trim(out var unreachableStatements);
+        var unreachableStatements = cfg.GetUnreachableStatements();
         if (unreachableStatements.Length == 0)
             return cfg;
 
