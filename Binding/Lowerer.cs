@@ -101,14 +101,23 @@ internal static class Lowerer
         // break: ...
         var statements = new ArrayBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 4);
         statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.ContinueLabel));
-        statements.Add(
-            new BoundConditionalGotoStatement(
-                whileStatement.Context,
+
+        BoundStatement goToBreak;
+        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is true)
+        {
+            goToBreak = new BoundGotoStatement(whileStatement.Condition.Context, whileStatement.BreakLabel);
+        }
+        else
+        {
+            goToBreak = new BoundConditionalGotoStatement(
+                whileStatement.Condition.Context,
                 whileStatement.Condition,
                 whileStatement.BreakLabel,
                 branchIfFalse: true
-            )
-        );
+            );
+        }
+
+        statements.Add(goToBreak);
 
         LowerStatementsToBuilder(whileStatement.Body.Statements, ref statements);
         statements.Add(new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel));

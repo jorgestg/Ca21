@@ -35,10 +35,10 @@ internal sealed class Compiler
     {
         _diagnosticsBuilder.AddRange(ModuleSymbol.Diagnostics);
 
-        foreach (var structureSymbol in ModuleSymbol.Structures)
+        foreach (var structureSymbol in ModuleSymbol.GetMembers<StructureSymbol>())
             _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
 
-        foreach (var functionSymbol in ModuleSymbol.Functions)
+        foreach (var functionSymbol in ModuleSymbol.GetMembers<SourceFunctionSymbol>())
             CompileFunction(functionSymbol);
     }
 

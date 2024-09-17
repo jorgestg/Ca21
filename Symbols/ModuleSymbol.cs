@@ -21,42 +21,46 @@ internal sealed class ModuleSymbol : Symbol
 
         var diagnosticsBuilder = new DiagnosticList();
         var memberMapBuilder = new Dictionary<string, IModuleMemberSymbol>();
-
-        var topLevelStructures = context._Definitions.OfType<TopLevelStructureDefinitionContext>();
-        var structuresBuilder = new ArrayBuilder<StructureSymbol>(topLevelStructures.Count());
-        foreach (var structureContext in topLevelStructures)
+        var membersBuilder = new ArrayBuilder<IModuleMemberSymbol>(context._Definitions.Count);
+        foreach (var definitionContext in context._Definitions)
         {
-            var structureSymbol = new StructureSymbol(structureContext.Structure, this);
-            structuresBuilder.Add(structureSymbol);
-
-            if (!memberMapBuilder.TryAdd(structureSymbol.Name, structureSymbol))
+            switch (definitionContext)
             {
-                diagnosticsBuilder.Add(
-                    structureContext.Structure.Name,
-                    DiagnosticMessages.NameIsAlreadyDefined(structureSymbol.Name)
-                );
-            }
-        }
+                case TopLevelFunctionDefinitionContext { Function: var functionContext }:
+                {
+                    var functionSymbol = new SourceFunctionSymbol(functionContext, this);
+                    membersBuilder.Add(functionSymbol);
 
-        var topLevelFunctions = context._Definitions.OfType<TopLevelFunctionDefinitionContext>();
-        var functionsBuilder = new ArrayBuilder<SourceFunctionSymbol>(topLevelFunctions.Count());
-        foreach (var functionContext in topLevelFunctions)
-        {
-            var functionSymbol = new SourceFunctionSymbol(functionContext.Function, this);
-            functionsBuilder.Add(functionSymbol);
+                    if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
+                    {
+                        diagnosticsBuilder.Add(
+                            functionContext.Signature.Name,
+                            DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
+                        );
+                    }
 
-            if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
-            {
-                diagnosticsBuilder.Add(
-                    functionContext.Function.Signature.Name,
-                    DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
-                );
+                    break;
+                }
+                case TopLevelStructureDefinitionContext { Structure: var structureContext }:
+                {
+                    var structureSymbol = new StructureSymbol(structureContext, this);
+                    membersBuilder.Add(structureSymbol);
+
+                    if (!memberMapBuilder.TryAdd(structureSymbol.Name, structureSymbol))
+                    {
+                        diagnosticsBuilder.Add(
+                            structureContext.Name,
+                            DiagnosticMessages.NameIsAlreadyDefined(structureSymbol.Name)
+                        );
+                    }
+
+                    break;
+                }
             }
         }
 
         Diagnostics = diagnosticsBuilder.GetImmutableArray();
-        Structures = structuresBuilder.MoveToImmutable();
-        Functions = functionsBuilder.MoveToImmutable();
+        Members = membersBuilder.MoveToImmutable();
         MemberMap = memberMapBuilder.ToFrozenDictionary();
     }
 
@@ -64,7 +68,16 @@ internal sealed class ModuleSymbol : Symbol
     public override string Name { get; }
     public ModuleBinder Binder { get; }
     public ImmutableArray<Diagnostic> Diagnostics { get; }
-    public ImmutableArray<StructureSymbol> Structures { get; }
-    public ImmutableArray<SourceFunctionSymbol> Functions { get; }
+    public ImmutableArray<IModuleMemberSymbol> Members { get; }
     public FrozenDictionary<string, IModuleMemberSymbol> MemberMap { get; }
+
+    public IEnumerable<T> GetMembers<T>()
+        where T : IModuleMemberSymbol
+    {
+        foreach (var member in Members)
+        {
+            if (member is T t)
+                yield return t;
+        }
+    }
 }

@@ -1,18 +1,22 @@
 ﻿using Antlr4.Runtime;
 using Ca21;
 using Ca21.Antlr;
+using Ca21.Backends;
 using Ca21.Symbols;
 using Ca21.Text;
 
 const string source = """
-    extern("js print") func print(n int32);
-    
-    func main() {
-        while false {
-            print(42);
+    func fib(n int32) int32 {
+        let a = 0;
+        let b = 1;
+        let c = a + b;
+        while c < n {
+            a = b;
+            b = c;
+            c = a + b;
         }
 
-        print(1);
+        return b;
     }
     """;
 
@@ -39,4 +43,8 @@ if (compiler.Diagnostics.Any())
     }
 
     Console.ResetColor();
+}
+else
+{
+    C99Backend.Emit(compiler.ModuleSymbol, compiler.Bodies, Console.Out);
 }

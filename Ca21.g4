@@ -23,7 +23,7 @@ functionDefinition
     ;
 
 externModifier
-    : 'extern' '(' ExternName=String ')'
+    : 'extern' '(' ExternName=String ')'?
     ;
 
 functionSignature
