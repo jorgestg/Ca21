@@ -38,10 +38,10 @@ internal ref struct ArrayBuilder<T>
 
     public void TryAdd(T value)
     {
-        if (IsDefault || _array.Length == Count)
+        if (IsDefault)
             return;
 
-        _array[Count++] = value;
+        Add(value);
     }
 
     public ImmutableArray<T> DrainToImmutable()

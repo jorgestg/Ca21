@@ -64,7 +64,7 @@ internal sealed class C99Backend
 
         var functions = ModuleSymbol.GetMembers<SourceFunctionSymbol>();
         foreach (var functionSymbol in functions)
-            EmitFunctionSignature(functionSymbol);
+            EmitFunctionSignature(functionSymbol, emitSemicolon: true);
 
         foreach (var functionSymbol in functions)
         {
@@ -115,10 +115,10 @@ internal sealed class C99Backend
     {
         // TODO: Handle exported
 
-        EmitFunctionSignature(functionSymbol);
+        EmitFunctionSignature(functionSymbol, emitSemicolon: false);
 
         _output.WriteLine();
-        _output.Write('{');
+        _output.WriteLine('{');
         _output.Indent++;
 
         var cfg = Bodies[functionSymbol];
@@ -126,10 +126,10 @@ internal sealed class C99Backend
             EmitStatement(statement);
 
         _output.Indent--;
-        _output.Write('}');
+        _output.WriteLine('}');
     }
 
-    private void EmitFunctionSignature(SourceFunctionSymbol functionSymbol)
+    private void EmitFunctionSignature(SourceFunctionSymbol functionSymbol, bool emitSemicolon)
     {
         EmitTypeReference(functionSymbol.ReturnType);
         _output.Write(' ');
@@ -154,7 +154,7 @@ internal sealed class C99Backend
 
         _output.Write(')');
 
-        if (functionSymbol.IsExtern)
+        if (emitSemicolon)
             _output.WriteLine(';');
     }
 

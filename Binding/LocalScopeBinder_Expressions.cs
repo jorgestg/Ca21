@@ -242,6 +242,9 @@ internal sealed partial class LocalScopeBinder
             return new BoundAssignmentExpression(context, Symbol.Missing, value);
         }
 
+        if (!local.IsMutable)
+            diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(local.Name));
+
         TypeCheck(context, local.Type, value.Type, diagnostics);
         return new BoundAssignmentExpression(context, local, value);
     }

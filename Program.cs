@@ -7,9 +7,9 @@ using Ca21.Text;
 
 const string source = """
     func fib(n int32) int32 {
-        let a = 0;
-        let b = 1;
-        let c = a + b;
+        let mut a = 0;
+        let mut b = 1;
+        let mut c = a + b;
         while c < n {
             a = b;
             b = c;

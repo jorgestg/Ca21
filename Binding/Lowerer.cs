@@ -29,7 +29,7 @@ internal static class Lowerer
     {
         var statements = default(ArrayBuilder<BoundStatement>);
         FlattenCore(block, ref statements);
-        return statements.IsDefault ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
+        return statements.Count == 0 ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
 
         static void FlattenCore(BoundBlock block, ref ArrayBuilder<BoundStatement> statements)
         {
@@ -157,7 +157,7 @@ internal static class Lowerer
 
     private static BoundExpression LowerExpression(BoundExpression expression)
     {
-        return expression.ConstantValue.HasValue
+        return expression.Kind != BoundNodeKind.LiteralExpression && expression.ConstantValue.HasValue
             ? new BoundLiteralExpression(expression.Context, expression.ConstantValue.Value, expression.Type)
             : expression;
     }

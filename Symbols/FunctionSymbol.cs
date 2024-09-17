@@ -94,7 +94,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
 
     public bool IsExported => Context.ExportModifier != null;
     public bool IsExtern => Context.ExternModifier != null;
-    public string? ExternName => Context.ExternModifier.ExternName?.Text;
+    public string? ExternName => Context.ExternModifier?.ExternName?.Text;
 
     [MemberNotNull(nameof(_returnType), nameof(_parameterMap))]
     private void InitializeProperties()
