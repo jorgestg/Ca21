@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
@@ -183,7 +184,7 @@ internal sealed class ControlFlowGraph
 
         Connect(entryBlock, basicBlocks[0]);
 
-        var idToBasicBlock = new Dictionary<BoundLabel, BasicBlock>();
+        var idToBasicBlock = new Dictionary<LabelSymbol, BasicBlock>();
         foreach (var basicBlock in basicBlocks)
         {
             var firstStatement = basicBlock.Statements.FirstOrDefault();

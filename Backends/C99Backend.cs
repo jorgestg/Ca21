@@ -9,6 +9,7 @@ internal sealed class C99Backend
 {
     private readonly IndentedTextWriter _output;
     private readonly Dictionary<Symbol, string> _mangledNames = new();
+    private readonly List<LocalSymbol> _locals = new(25);
 
     private C99Backend(Compiler compiler, TextWriter writer)
     {
@@ -68,27 +69,51 @@ internal sealed class C99Backend
 
     private void EmitMangledName(Symbol symbol)
     {
-        if (_mangledNames.TryGetValue(symbol, out var name))
+        switch (symbol.Kind)
         {
-            _output.Write(name);
-            return;
-        }
-
-        name = string.Create(
-            symbol.Name.Length + 9,
-            symbol,
-            (buffer, symbol) =>
+            case SymbolKind.Field:
             {
-                symbol.Name.AsSpan().CopyTo(buffer);
-                buffer[symbol.Name.Length] = '_';
-                buffer = buffer.Slice(symbol.Name.Length + 1);
-                var hashCode = symbol.GetHashCode();
-                hashCode.TryFormat(buffer, out _, "X8");
+                var field = (FieldSymbol)symbol;
+                _output.Write(field.Name);
+                break;
             }
-        );
 
-        _mangledNames.Add(symbol, name);
-        _output.Write(name);
+            case SymbolKind.Local:
+            {
+                var local = (LocalSymbol)symbol;
+                _output.Write(local.Name);
+                _output.Write('_');
+                _output.Write(_locals.IndexOf(local));
+                break;
+            }
+
+            case SymbolKind.Type:
+            case SymbolKind.Function:
+            {
+                if (_mangledNames.TryGetValue(symbol, out var name))
+                {
+                    _output.Write(name);
+                    break;
+                }
+
+                name = string.Create(
+                    symbol.Name.Length + 9,
+                    symbol,
+                    (buffer, symbol) =>
+                    {
+                        symbol.Name.AsSpan().CopyTo(buffer);
+                        buffer[symbol.Name.Length] = '_';
+                        buffer = buffer.Slice(symbol.Name.Length + 1);
+                        var hashCode = symbol.GetHashCode();
+                        hashCode.TryFormat(buffer, out _, "X8");
+                    }
+                );
+
+                _mangledNames.Add(symbol, name);
+                _output.Write(name);
+                break;
+            }
+        }
     }
 
     private void EmitStructure(StructureSymbol structureSymbol)
@@ -130,6 +155,10 @@ internal sealed class C99Backend
     private void EmitFunction(SourceFunctionSymbol functionSymbol)
     {
         // TODO: Handle exported
+        _locals.Clear();
+
+        foreach (var parameter in functionSymbol.Parameters)
+            _locals.Add(parameter);
 
         EmitFunctionSignature(functionSymbol, emitSemicolon: false);
 
@@ -139,7 +168,25 @@ internal sealed class C99Backend
 
         var cfg = Compiler.Bodies[functionSymbol];
         foreach (var statement in cfg.Statements)
+        {
+            switch (statement.Kind)
+            {
+                case BoundNodeKind.LabelStatement:
+                    _locals.Add(((BoundLabelStatement)statement).Label);
+                    break;
+                case BoundNodeKind.GotoStatement:
+                    _locals.Add(((BoundGotoStatement)statement).Target);
+                    break;
+                case BoundNodeKind.ConditionalGotoStatement:
+                    _locals.Add(((BoundConditionalGotoStatement)statement).Target);
+                    break;
+                case BoundNodeKind.LocalDeclaration:
+                    _locals.Add(((BoundLocalDeclaration)statement).Local);
+                    break;
+            }
+
             EmitStatement(statement);
+        }
 
         _output.Indent--;
         _output.WriteLine('}');
@@ -156,8 +203,9 @@ internal sealed class C99Backend
 
         _output.Write('(');
         var isFirst = true;
-        foreach (var parameter in functionSymbol.Parameters)
+        for (int i = 0; i < functionSymbol.Parameters.Length; i++)
         {
+            var parameter = functionSymbol.Parameters[i];
             if (!isFirst)
                 _output.Write(", ");
 
@@ -167,6 +215,8 @@ internal sealed class C99Backend
             EmitTypeReference(parameter.Type);
             _output.Write(' ');
             _output.Write(parameter.Name);
+            _output.Write('_');
+            _output.Write(i);
 
             isFirst = false;
         }
@@ -215,7 +265,7 @@ internal sealed class C99Backend
     private void EmitLabelStatement(BoundLabelStatement statement)
     {
         _output.Indent--;
-        _output.Write(statement.Label.Name);
+        EmitMangledName(statement.Label);
         _output.WriteLine(':');
         _output.Indent++;
     }
@@ -223,7 +273,7 @@ internal sealed class C99Backend
     private void EmitGotoStatement(BoundGotoStatement statement)
     {
         _output.Write("goto ");
-        _output.Write(statement.Target.Name);
+        EmitMangledName(statement.Target);
         _output.WriteLine(';');
     }
 
@@ -240,16 +290,18 @@ internal sealed class C99Backend
         _output.WriteLine(')');
         _output.Indent++;
         _output.Write("goto ");
-        _output.Write(statement.Target.Name);
+        EmitMangledName(statement.Target);
         _output.WriteLine(';');
         _output.Indent--;
     }
 
     private void EmitLocalDeclaration(BoundLocalDeclaration statement)
     {
+        _locals.Add(statement.Local);
+
         EmitTypeReference(statement.Local.Type);
         _output.Write(' ');
-        _output.Write(statement.Local.Name);
+        EmitMangledName(statement.Local);
         if (statement.Initializer != null)
         {
             _output.Write(" = ");
@@ -318,7 +370,7 @@ internal sealed class C99Backend
 
             _output.Write('\'');
             _output.Write(c);
-            _output.Write("',");
+            _output.Write("', ");
             isFirst = false;
         }
 
@@ -328,7 +380,7 @@ internal sealed class C99Backend
     private void EmitCallExpression(BoundCallExpression expression)
     {
         var function = (SourceFunctionSymbol)expression.Function;
-        _output.Write(function.ExternName ?? _mangledNames[function]);
+        EmitMangledName(function);
         _output.Write('(');
         var isFirst = true;
         foreach (var argument in expression.Arguments)
@@ -355,21 +407,7 @@ internal sealed class C99Backend
         _output.Write(expression.Structure.Name);
     }
 
-    private void EmitNameExpression(BoundNameExpression expression)
-    {
-        switch (expression.ReferencedSymbol.Kind)
-        {
-            case SymbolKind.Function:
-                _output.Write(_mangledNames[expression.ReferencedSymbol]);
-                break;
-            case SymbolKind.Field:
-            case SymbolKind.Local:
-                _output.Write(expression.ReferencedSymbol.Name);
-                break;
-            default:
-                throw new UnreachableException();
-        }
-    }
+    private void EmitNameExpression(BoundNameExpression expression) => EmitMangledName(expression.ReferencedSymbol);
 
     private void EmitBinaryExpression(BoundBinaryExpression expression)
     {
@@ -400,7 +438,7 @@ internal sealed class C99Backend
 
     private void EmitAssignmentExpression(BoundAssignmentExpression expression)
     {
-        _output.Write(expression.Assignee.Name);
+        EmitMangledName(expression.Assignee);
         _output.Write(" = ");
         EmitExpression(expression.Value);
     }

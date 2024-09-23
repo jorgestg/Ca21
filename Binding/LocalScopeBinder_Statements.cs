@@ -53,8 +53,8 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
         if (body.Statements.Any() && condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
             diagnostics.Add(context.Body._statement, DiagnosticMessages.StatementIsUnreachable);
 
-        var continueIdentifier = new BoundLabel("loop");
-        var breakIdentifier = new BoundLabel("break");
+        var continueIdentifier = new LabelSymbol(context, "loop");
+        var breakIdentifier = new LabelSymbol(context, "break");
         return new BoundWhileStatement(context, condition, body, continueIdentifier, breakIdentifier);
     }
 

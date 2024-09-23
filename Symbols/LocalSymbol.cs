@@ -1,3 +1,4 @@
+using Antlr4.Runtime;
 using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
@@ -5,6 +6,12 @@ namespace Ca21.Symbols;
 internal abstract class LocalSymbol : Symbol
 {
     public override SymbolKind Kind => SymbolKind.Local;
+}
+
+internal sealed class LabelSymbol(ParserRuleContext context, string name) : LocalSymbol
+{
+    public override ParserRuleContext Context { get; } = context;
+    public override string Name { get; } = name;
 }
 
 internal sealed class SourceLocalSymbol(LocalDeclarationContext context, TypeSymbol type) : LocalSymbol
