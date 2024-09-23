@@ -29,7 +29,12 @@ internal sealed class C99Backend
         return backend;
     }
 
-    private void Emit() => EmitModule(Compiler.ModuleSymbol);
+    private void Emit()
+    {
+        _output.WriteLine("#include \"ca21.h\"");
+
+        EmitModule(Compiler.ModuleSymbol);
+    }
 
     private void EmitModule(ModuleSymbol moduleSymbol)
     {
@@ -87,32 +92,52 @@ internal sealed class C99Backend
                 break;
             }
 
-            case SymbolKind.Type:
             case SymbolKind.Function:
             {
-                if (_mangledNames.TryGetValue(symbol, out var name))
+                var function = (SourceFunctionSymbol)symbol;
+                if (function.IsExtern || function.IsExported)
                 {
-                    _output.Write(name);
+                    _output.Write(function.ExternName ?? function.Name);
                     break;
                 }
 
-                name = string.Create(
-                    symbol.Name.Length + 9,
-                    symbol,
-                    (buffer, symbol) =>
-                    {
-                        symbol.Name.AsSpan().CopyTo(buffer);
-                        buffer[symbol.Name.Length] = '_';
-                        buffer = buffer.Slice(symbol.Name.Length + 1);
-                        var hashCode = symbol.GetHashCode();
-                        hashCode.TryFormat(buffer, out _, "X8");
-                    }
-                );
-
-                _mangledNames.Add(symbol, name);
-                _output.Write(name);
+                EmitMangledNameCore(symbol);
                 break;
             }
+
+            case SymbolKind.Type:
+                EmitMangledNameCore(symbol);
+                break;
+
+            default:
+                throw new UnreachableException();
+        }
+
+        return;
+
+        void EmitMangledNameCore(Symbol symbol)
+        {
+            if (_mangledNames.TryGetValue(symbol, out var name))
+            {
+                _output.Write(name);
+                return;
+            }
+
+            name = string.Create(
+                symbol.Name.Length + 9,
+                symbol,
+                (buffer, symbol) =>
+                {
+                    symbol.Name.AsSpan().CopyTo(buffer);
+                    buffer[symbol.Name.Length] = '_';
+                    buffer = buffer.Slice(symbol.Name.Length + 1);
+                    var hashCode = symbol.GetHashCode();
+                    hashCode.TryFormat(buffer, out _, "X8");
+                }
+            );
+
+            _mangledNames.Add(symbol, name);
+            _output.Write(name);
         }
     }
 
@@ -154,7 +179,9 @@ internal sealed class C99Backend
 
     private void EmitFunction(SourceFunctionSymbol functionSymbol)
     {
-        // TODO: Handle exported
+        if (!functionSymbol.IsExported)
+            _output.WriteLine("static ");
+
         _locals.Clear();
 
         foreach (var parameter in functionSymbol.Parameters)
@@ -196,11 +223,7 @@ internal sealed class C99Backend
     {
         EmitTypeReference(functionSymbol.ReturnType);
         _output.Write(' ');
-        if (functionSymbol.IsExtern)
-            _output.Write(functionSymbol.ExternName);
-        else
-            EmitMangledName(functionSymbol);
-
+        EmitMangledName(functionSymbol);
         _output.Write('(');
         var isFirst = true;
         for (int i = 0; i < functionSymbol.Parameters.Length; i++)
@@ -361,7 +384,10 @@ internal sealed class C99Backend
             return;
         }
 
-        _output.Write("(char[]){");
+        _output.Write("__ca21_createString(");
+        _output.Write(str.Length);
+        _output.Write(", ");
+        _output.Write("(const char[]){");
         var isFirst = true;
         foreach (var c in str)
         {
@@ -370,11 +396,12 @@ internal sealed class C99Backend
 
             _output.Write('\'');
             _output.Write(c);
-            _output.Write("', ");
+            _output.Write('\'');
             isFirst = false;
         }
 
         _output.Write('}');
+        _output.Write(')');
     }
 
     private void EmitCallExpression(BoundCallExpression expression)

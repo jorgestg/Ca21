@@ -44,7 +44,7 @@ internal sealed partial class LocalScopeBinder
             IntegerLiteralContext c => ((object)int.Parse(c.Value.Text.Replace("_", "")), TypeSymbol.Int32),
             TrueLiteralContext => (true, TypeSymbol.Bool),
             FalseLiteralContext => (false, TypeSymbol.Bool),
-            StringLiteralContext c => (c.Value.Text, TypeSymbol.String),
+            StringLiteralContext c => (c.Value.Text.Trim('"'), TypeSymbol.String),
             _ => throw new UnreachableException()
         };
 

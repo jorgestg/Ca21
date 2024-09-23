@@ -21,7 +21,7 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
             {
                 Int32Keyword => TypeSymbol.Int32,
                 BoolKeyword => TypeSymbol.Bool,
-                StrKeyword => TypeSymbol.String,
+                StringKeyword => TypeSymbol.String,
                 _ => throw new UnreachableException()
             };
         }

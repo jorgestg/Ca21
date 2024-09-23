@@ -23,7 +23,7 @@ functionDefinition
     ;
 
 externModifier
-    : 'extern' '(' ExternName=String ')'?
+    : 'extern' ExternName=String?
     ;
 
 functionSignature
@@ -44,9 +44,9 @@ typeReference
     ;
 
 typeKeyword
-    : Keyword='int32'
-    | Keyword='str'
-    | Keyword='bool'
+    : Keyword=Int32Keyword
+    | Keyword=StringKeyword
+    | Keyword=BoolKeyword
     ;
 
 block
@@ -107,7 +107,7 @@ LetKeyword: 'let';
 MutKeyword: 'mut';
 Int32Keyword: 'int32';
 BoolKeyword: 'bool';
-StrKeyword: 'str';
+StringKeyword: 'string';
 StructKeyword: 'struct';
 TrueKeyword: 'true';
 FalseKeyword: 'false';

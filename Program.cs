@@ -1,35 +1,52 @@
-﻿using Antlr4.Runtime;
+﻿using System.CommandLine;
+using Antlr4.Runtime;
 using Ca21;
 using Ca21.Antlr;
 using Ca21.Backends;
 using Ca21.Symbols;
 using Ca21.Text;
 
-const string source = """
-    func fib(n int32) int32 {
-        let mut a = 0;
-        let mut b = 1;
-        let mut c = a + b;
-        while c < n {
-            a = b;
-            b = c;
-            c = a + b;
-        }
+var rootCommand = new RootCommand("Ca21 Compiler CLI");
 
-        return b;
-    }
-    """;
+var fileNameArgument = new Argument<string>("fileName", "The source file to compile");
+rootCommand.AddArgument(fileNameArgument);
 
-var sourceText = new SourceText("main.ca21", source.AsMemory());
-var charStream = CharStreams.fromString(source);
-SourceTextMap.Register(charStream, sourceText);
+var outOption = new Option<string?>("--out", "The output filename");
+outOption.AddAlias("-o");
+rootCommand.AddOption(outOption);
 
-var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
-var compilationUnit = parser.compilationUnit();
-var module = new ModuleSymbol(compilationUnit, "main");
-var compiler = Compiler.Compile(module);
-if (compiler.Diagnostics.Any())
+rootCommand.SetHandler(Compile, fileNameArgument, outOption);
+rootCommand.Invoke(args);
+
+static void Compile(string fileName, string? outputPath)
 {
+    string source;
+    try
+    {
+        source = File.ReadAllText(fileName);
+    }
+    catch (Exception e)
+    {
+        Console.ForegroundColor = ConsoleColor.DarkRed;
+        Console.Error.WriteLine(e.Message);
+        return;
+    }
+
+    var sourceText = new SourceText(fileName, source.AsMemory());
+    var charStream = CharStreams.fromString(source);
+    SourceTextMap.Register(charStream, sourceText);
+
+    var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
+    var compilationUnit = parser.compilationUnit();
+    var module = new ModuleSymbol(compilationUnit, "main");
+    var compiler = Compiler.Compile(module);
+    if (!compiler.Diagnostics.Any())
+    {
+        using TextWriter writer = outputPath == null ? Console.Out : new StreamWriter(outputPath);
+        C99Backend.Emit(compiler, writer);
+        return;
+    }
+
     Console.ForegroundColor = ConsoleColor.DarkRed;
     foreach (var diagnostic in compiler.Diagnostics)
     {
@@ -43,8 +60,4 @@ if (compiler.Diagnostics.Any())
     }
 
     Console.ResetColor();
-}
-else
-{
-    C99Backend.Emit(compiler, Console.Out);
 }
