@@ -27,6 +27,7 @@ internal abstract class TypeSymbol : Symbol
     public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool", NativeType.Bool);
     public static readonly TypeSymbol String = new NativeTypeSymbol("string", NativeType.String);
 
+    public override SymbolKind Kind => SymbolKind.Type;
     public virtual NativeType NativeType => NativeType.None;
 
     private sealed class NativeTypeSymbol(string name, NativeType nativeType) : TypeSymbol

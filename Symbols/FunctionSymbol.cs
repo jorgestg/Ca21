@@ -12,6 +12,7 @@ internal abstract class FunctionSymbol : Symbol
 {
     public static new readonly FunctionSymbol Missing = new MissingFunctionSymbol();
 
+    public override SymbolKind Kind => SymbolKind.Function;
     public abstract ImmutableArray<SourceParameterSymbol> Parameters { get; }
     public abstract TypeSymbol ReturnType { get; }
 
@@ -93,7 +94,10 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
     }
 
     public bool IsExported => Context.ExportModifier != null;
+
+    [MemberNotNullWhen(true, nameof(ExternName))]
     public bool IsExtern => Context.ExternModifier != null;
+
     public string? ExternName => Context.ExternModifier?.ExternName?.Text;
 
     [MemberNotNull(nameof(_returnType), nameof(_parameterMap))]

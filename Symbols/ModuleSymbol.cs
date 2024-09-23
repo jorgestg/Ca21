@@ -8,6 +8,7 @@ namespace Ca21.Symbols;
 
 internal interface IModuleMemberSymbol
 {
+    SymbolKind Kind { get; }
     ModuleSymbol ContainingModule { get; }
 }
 
@@ -64,6 +65,7 @@ internal sealed class ModuleSymbol : Symbol
         MemberMap = memberMapBuilder.ToFrozenDictionary();
     }
 
+    public override SymbolKind Kind => SymbolKind.Module;
     public override CompilationUnitContext Context { get; }
     public override string Name { get; }
     public ModuleBinder Binder { get; }

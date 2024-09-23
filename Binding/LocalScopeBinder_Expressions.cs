@@ -75,13 +75,14 @@ internal sealed partial class LocalScopeBinder
 
         var arguments = argumentsBuilder.MoveToImmutable();
 
-        if (callee is not BoundNameExpression nameExpression)
+        if (callee.Kind != BoundNodeKind.NameExpression)
         {
             diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
             return new BoundCallExpression(context.Callee, FunctionSymbol.Missing, arguments);
         }
 
-        if (nameExpression.ReferencedSymbol is not SourceFunctionSymbol functionSymbol)
+        var nameExpression = (BoundNameExpression)callee;
+        if (nameExpression.ReferencedSymbol.Kind != SymbolKind.Function)
         {
             if (nameExpression.ReferencedSymbol != Symbol.Missing)
             {
@@ -94,6 +95,10 @@ internal sealed partial class LocalScopeBinder
             return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
         }
 
+        if (nameExpression.ReferencedSymbol == FunctionSymbol.Missing)
+            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
+
+        var functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
         for (int i = 0; i < arguments.Length; i++)
         {
             var parameter = functionSymbol.Parameters.ElementAtOrDefault(i);
@@ -117,14 +122,11 @@ internal sealed partial class LocalScopeBinder
             return new BoundAccessExpression(context, left, FieldSymbol.Missing);
 
         if (
-            left.Type is not StructureSymbol structureSymbol ||
-            !structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField)
+            left.Type is not StructureSymbol structureSymbol
+            || !structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField)
         )
         {
-            diagnostics.Add(
-                context.Right,
-                DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text)
-            );
+            diagnostics.Add(context.Right, DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text));
 
             referencedField = FieldSymbol.Missing;
         }

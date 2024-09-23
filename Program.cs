@@ -46,5 +46,5 @@ if (compiler.Diagnostics.Any())
 }
 else
 {
-    C99Backend.Emit(compiler.ModuleSymbol, compiler.Bodies, Console.Out);
+    C99Backend.Emit(compiler, Console.Out);
 }

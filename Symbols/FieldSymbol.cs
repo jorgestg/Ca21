@@ -7,6 +7,8 @@ internal abstract class FieldSymbol : Symbol
 {
     public static new readonly FieldSymbol Missing = new MissingFieldSymbol();
 
+    public override SymbolKind Kind => SymbolKind.Field;
+
     private sealed class MissingFieldSymbol : FieldSymbol
     {
         public override ParserRuleContext Context => ParserRuleContext.EMPTY;
