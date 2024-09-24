@@ -1,5 +1,6 @@
 using System.CodeDom.Compiler;
 using System.Diagnostics;
+using System.Reflection;
 using Ca21.Binding;
 using Ca21.Symbols;
 
@@ -10,10 +11,12 @@ internal sealed class C99Backend
     private readonly IndentedTextWriter _output;
     private readonly Dictionary<Symbol, string> _mangledNames = new();
     private readonly List<LocalSymbol> _locals = new(25);
+    private readonly Dictionary<string, string> _constants;
 
     private C99Backend(Compiler compiler, TextWriter writer)
     {
         _output = new IndentedTextWriter(writer);
+        _constants = new Dictionary<string, string>(compiler.Constants.Count);
 
         Compiler = compiler;
         Writer = writer;
@@ -32,6 +35,32 @@ internal sealed class C99Backend
     private void Emit()
     {
         _output.WriteLine("#include \"ca21.h\"");
+
+        Span<byte> lengthBytes = stackalloc byte[4];
+        Span<char> lengthChars = stackalloc char[2];
+        foreach (var constant in Compiler.Constants)
+        {
+            var name = MangleName("CS");
+            _constants[constant] = name;
+
+            _output.Write("static const char ");
+            _output.Write(name);
+            _output.Write('[');
+            _output.Write(constant.Length + 4);
+            _output.Write("] = \"");
+
+            BitConverter.TryWriteBytes(lengthBytes, constant.Length);
+            foreach (var @byte in lengthBytes)
+            {
+                _output.Write("\\x");
+                @byte.TryFormat(lengthChars, out _, "X2");
+                _output.Write(lengthChars);
+            }
+
+            _output.Write(constant);
+            _output.Write('"');
+            _output.WriteLine(';');
+        }
 
         EmitModule(Compiler.ModuleSymbol);
     }
@@ -123,22 +152,26 @@ internal sealed class C99Backend
                 return;
             }
 
-            name = string.Create(
-                symbol.Name.Length + 9,
-                symbol,
-                (buffer, symbol) =>
-                {
-                    symbol.Name.AsSpan().CopyTo(buffer);
-                    buffer[symbol.Name.Length] = '_';
-                    buffer = buffer.Slice(symbol.Name.Length + 1);
-                    var hashCode = symbol.GetHashCode();
-                    hashCode.TryFormat(buffer, out _, "X8");
-                }
-            );
-
+            name = MangleName(symbol.Name);
             _mangledNames.Add(symbol, name);
             _output.Write(name);
         }
+    }
+
+    private static string MangleName(string name)
+    {
+        return string.Create(
+            name.Length + 9,
+            name,
+            (buffer, symbol) =>
+            {
+                name.AsSpan().CopyTo(buffer);
+                buffer[name.Length] = '_';
+                buffer = buffer.Slice(name.Length + 1);
+                var hashCode = symbol.GetHashCode();
+                hashCode.TryFormat(buffer, out _, "X8");
+            }
+        );
     }
 
     private void EmitStructure(StructureSymbol structureSymbol)
@@ -170,6 +203,15 @@ internal sealed class C99Backend
                 break;
             case NativeType.Unit:
                 _output.Write("void");
+                break;
+            case NativeType.Int32:
+                _output.Write("int32_t");
+                break;
+            case NativeType.Bool:
+                _output.Write("bool");
+                break;
+            case NativeType.String:
+                _output.Write("char*");
                 break;
             default:
                 _output.Write(typeSymbol.Name);
@@ -384,24 +426,7 @@ internal sealed class C99Backend
             return;
         }
 
-        _output.Write("__ca21_createString(");
-        _output.Write(str.Length);
-        _output.Write(", ");
-        _output.Write("(const char[]){");
-        var isFirst = true;
-        foreach (var c in str)
-        {
-            if (!isFirst)
-                _output.Write(", ");
-
-            _output.Write('\'');
-            _output.Write(c);
-            _output.Write('\'');
-            isFirst = false;
-        }
-
-        _output.Write('}');
-        _output.Write(')');
+        _output.Write(_constants[str]);
     }
 
     private void EmitCallExpression(BoundCallExpression expression)
