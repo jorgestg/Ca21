@@ -28,6 +28,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
         return context switch
         {
             LocalDeclarationStatementContext c => BindLocalDeclaration(c.Declaration, diagnostics),
+            IfStatementContext c => BindIfStatement(c, diagnostics),
             WhileStatementContext c => BindWhileStatement(c, diagnostics),
             ReturnStatementContext c => BindReturnStatement(c, diagnostics),
             BlockStatementContext c => BindBlock(c.Block, diagnostics),
@@ -44,14 +45,23 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
         return new BoundLocalDeclaration(context, local, initializer);
     }
 
+    private BoundIfStatement BindIfStatement(IfStatementContext context, DiagnosticList diagnostics)
+    {
+        var condition = BindExpression(context.Condition, TypeSymbol.Bool, diagnostics);
+        var body = BindBlock(context.Body, diagnostics);
+        if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
+            diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
+
+        var elseClause = context.ElseClause == null ? null : BindBlock(context.ElseClause, diagnostics);
+        return new BoundIfStatement(context, condition, body, elseClause);
+    }
+
     private BoundWhileStatement BindWhileStatement(WhileStatementContext context, DiagnosticList diagnostics)
     {
-        var condition = BindExpression(context.Condition, diagnostics);
-        TypeCheck(context, TypeSymbol.Bool, condition.Type, diagnostics);
-
+        var condition = BindExpression(context.Condition, TypeSymbol.Bool, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
-        if (body.Statements.Any() && condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
-            diagnostics.Add(context.Body._statement, DiagnosticMessages.StatementIsUnreachable);
+        if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
+            diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
 
         var continueIdentifier = new LabelSymbol(context, "loop");
         var breakIdentifier = new LabelSymbol(context, "break");

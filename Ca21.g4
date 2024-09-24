@@ -56,6 +56,7 @@ block
 
 statement
     : Declaration=localDeclaration #LocalDeclarationStatement
+    | 'if' Condition=expression Body=block ('else' ElseClause=block)? #IfStatement
     | 'while' Condition=expression Body=block #WhileStatement
     | 'return' Value=expressionOrBlock ';' #ReturnStatement
     | Block=block #BlockStatement
@@ -84,7 +85,7 @@ expression
     ;
 
 fieldInitializer
-    : Name=Identifier '=' Value=expressionOrBlock #AssignmentFieldInitializer
+    : Name=Identifier '=' Value=expression #AssignmentFieldInitializer
     | Name=Identifier #NameOnlyFieldInitializer
     ;
 
@@ -106,6 +107,7 @@ ExportKeyword: 'export';
 FuncKeyword: 'func';
 LetKeyword: 'let';
 MutKeyword: 'mut';
+IfKeyword: 'if';
 Int32Keyword: 'int32';
 Int64Keyword: 'int64';
 BoolKeyword: 'bool';

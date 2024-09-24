@@ -44,7 +44,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
             return cfg;
 
         foreach (var unreachableStatement in unreachableStatements)
-            diagnostics.Add(unreachableStatement.Context, DiagnosticMessages.StatementIsUnreachable);
+            diagnostics.Add(unreachableStatement.Context, DiagnosticMessages.CodeIsUnreachable);
 
         return cfg;
     }

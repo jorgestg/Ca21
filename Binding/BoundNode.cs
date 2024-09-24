@@ -7,6 +7,7 @@ internal enum BoundNodeKind
     GotoStatement,
     ConditionalGotoStatement,
     LocalDeclaration,
+    IfStatement,
     WhileStatement,
     ReturnStatement,
     ExpressionStatement,

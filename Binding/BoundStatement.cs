@@ -47,6 +47,19 @@ internal sealed class BoundLocalDeclaration(ParserRuleContext context, LocalSymb
     public BoundExpression? Initializer { get; } = initializer;
 }
 
+internal sealed class BoundIfStatement(
+    ParserRuleContext context,
+    BoundExpression condition,
+    BoundBlock body,
+    BoundBlock? elseClause
+) : BoundStatement(context)
+{
+    public override BoundNodeKind Kind => BoundNodeKind.IfStatement;
+    public BoundExpression Condition { get; } = condition;
+    public BoundBlock Body { get; } = body;
+    public BoundBlock? ElseClause { get; } = elseClause;
+}
+
 internal sealed class BoundWhileStatement(
     ParserRuleContext context,
     BoundExpression condition,

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
@@ -60,6 +61,7 @@ internal static class Lowerer
         {
             BoundNodeKind.Block => Lower((BoundBlock)statement),
             BoundNodeKind.LocalDeclaration => LowerLocalDeclaration((BoundLocalDeclaration)statement),
+            BoundNodeKind.IfStatement => LowerIfStatement((BoundIfStatement)statement),
             BoundNodeKind.WhileStatement => LowerWhileStatement((BoundWhileStatement)statement),
             BoundNodeKind.ReturnStatement => LowerReturnStatement((BoundReturnStatement)statement),
             _ => statement,
@@ -89,40 +91,97 @@ internal static class Lowerer
             : new BoundLocalDeclaration(localDeclaration.Context, localDeclaration.Local, loweredInitializer);
     }
 
-    private static BoundStatement LowerWhileStatement(BoundWhileStatement whileStatement)
+    private static BoundStatement LowerIfStatement(BoundIfStatement statement)
     {
-        var loweredCondition = LowerExpression(whileStatement.Condition);
+        var loweredCondition = LowerExpression(statement.Condition);
         if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is false)
-            return new BoundNopStatement(whileStatement.Context);
+        {
+            if (statement.ElseClause == null)
+                return new BoundNopStatement(statement.Context);
 
-        // continue: jumpIfFalse <condition> break
+            return LowerStatement(statement.ElseClause);
+        }
+
+        var statements = default(ArrayBuilder<BoundStatement>);
+        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is true)
+        {
+            statements = new ArrayBuilder<BoundStatement>(statement.Body.Statements.Length);
+            LowerStatementsToBuilder(statement.Body.Statements, ref statements);
+            return new BoundBlock(statement.Context, statements.MoveToImmutable());
+        }
+
+        // gotoIfFalse <condition> {else|end}
+        // <then>
+        // goto end
+        // [
+        //  else:
+        //  <else>
+        // ]
+        // end:
+        var statementCount = statement.Body.Statements.Length + 3;
+        if (statement.ElseClause != null)
+            statementCount += statement.ElseClause.Statements.Length + 1;
+
+        statements = new ArrayBuilder<BoundStatement>(statementCount);
+
+        var elseClauseLabel = statement.ElseClause == null ? null : new LabelSymbol(statement.Context, "else");
+        var endLabel = new LabelSymbol(statement.Context, "end");
+        statements.Add(
+            new BoundConditionalGotoStatement(
+                statement.Condition.Context,
+                statement.Condition,
+                elseClauseLabel ?? endLabel,
+                branchIfFalse: true
+            )
+        );
+
+        LowerStatementsToBuilder(statement.Body.Statements, ref statements);
+        statements.Add(new BoundGotoStatement(statement.Context, endLabel));
+
+        if (statement.ElseClause != null)
+        {
+            statements.Add(new BoundLabelStatement(statement.Context, elseClauseLabel!));
+            LowerStatementsToBuilder(statement.ElseClause.Statements, ref statements);
+        }
+
+        statements.Add(new BoundLabelStatement(statement.Context, endLabel));
+        return new BoundBlock(statement.Context, statements.MoveToImmutable());
+    }
+
+    private static BoundStatement LowerWhileStatement(BoundWhileStatement statement)
+    {
+        var loweredCondition = LowerExpression(statement.Condition);
+        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is false)
+            return new BoundNopStatement(statement.Context);
+
+        // continue: gotoIfFalse <condition> break
         // <body>
         // goto continue
         // break: ...
-        var statements = new ArrayBuilder<BoundStatement>(whileStatement.Body.Statements.Length + 4);
-        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.ContinueLabel));
+        var statements = new ArrayBuilder<BoundStatement>(statement.Body.Statements.Length + 4);
+        statements.Add(new BoundLabelStatement(statement.Context, statement.ContinueLabel));
 
         BoundStatement goToBreak;
         if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is true)
         {
-            goToBreak = new BoundGotoStatement(whileStatement.Condition.Context, whileStatement.BreakLabel);
+            goToBreak = new BoundGotoStatement(statement.Condition.Context, statement.BreakLabel);
         }
         else
         {
             goToBreak = new BoundConditionalGotoStatement(
-                whileStatement.Condition.Context,
-                whileStatement.Condition,
-                whileStatement.BreakLabel,
+                statement.Condition.Context,
+                statement.Condition,
+                statement.BreakLabel,
                 branchIfFalse: true
             );
         }
 
         statements.Add(goToBreak);
 
-        LowerStatementsToBuilder(whileStatement.Body.Statements, ref statements);
-        statements.Add(new BoundGotoStatement(whileStatement.Context, whileStatement.ContinueLabel));
-        statements.Add(new BoundLabelStatement(whileStatement.Context, whileStatement.BreakLabel));
-        return new BoundBlock(whileStatement.Context, statements.MoveToImmutable());
+        LowerStatementsToBuilder(statement.Body.Statements, ref statements);
+        statements.Add(new BoundGotoStatement(statement.Context, statement.ContinueLabel));
+        statements.Add(new BoundLabelStatement(statement.Context, statement.BreakLabel));
+        return new BoundBlock(statement.Context, statements.MoveToImmutable());
     }
 
     private static BoundStatement LowerReturnStatement(BoundReturnStatement returnStatement)

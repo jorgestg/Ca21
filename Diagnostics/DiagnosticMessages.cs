@@ -41,5 +41,5 @@ internal static class DiagnosticMessages
     public static string CycleDetected(SourceFieldSymbol field) =>
         $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingType.Name}`";
 
-    public const string StatementIsUnreachable = "Statement is unreachable";
+    public const string CodeIsUnreachable = "Code is unreachable";
 }

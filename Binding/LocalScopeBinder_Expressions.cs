@@ -34,13 +34,14 @@ internal sealed partial class LocalScopeBinder
 
     public BoundExpression BindExpression(
         ExpressionContext context,
-        TypeSymbol environmentType,
+        TypeSymbol expectedType,
         DiagnosticList diagnostics
     )
     {
-        PushEnvironmentType(environmentType);
+        PushEnvironmentType(expectedType);
         var expression = BindExpression(context, diagnostics);
         PopEnvironmentType();
+        TypeCheck(context, expected: expectedType, actual: expression.Type, diagnostics);
         return expression;
     }
 
@@ -154,7 +155,6 @@ internal sealed partial class LocalScopeBinder
             }
 
             var argument = BindExpression(arguments[i], parameter.Type, diagnostics);
-            TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
             argumentsBuilder.Add(argument);
         }
 
