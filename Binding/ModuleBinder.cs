@@ -20,6 +20,7 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
             return keywordReference.TypeKeyword.Keyword.Type switch
             {
                 Int32Keyword => TypeSymbol.Int32,
+                Int64Keyword => TypeSymbol.Int64,
                 BoolKeyword => TypeSymbol.Bool,
                 StringKeyword => TypeSymbol.String,
                 _ => throw new UnreachableException()

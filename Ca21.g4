@@ -45,6 +45,7 @@ typeReference
 
 typeKeyword
     : Keyword=Int32Keyword
+    | Keyword=Int64Keyword
     | Keyword=StringKeyword
     | Keyword=BoolKeyword
     ;
@@ -106,6 +107,7 @@ FuncKeyword: 'func';
 LetKeyword: 'let';
 MutKeyword: 'mut';
 Int32Keyword: 'int32';
+Int64Keyword: 'int64';
 BoolKeyword: 'bool';
 StringKeyword: 'string';
 StructKeyword: 'struct';

@@ -9,6 +9,18 @@ namespace Ca21.Binding;
 
 internal sealed partial class LocalScopeBinder
 {
+    private Stack<TypeSymbol>? _environmentType;
+
+    private void PushEnvironmentType(TypeSymbol type)
+    {
+        _environmentType ??= new Stack<TypeSymbol>();
+        _environmentType.Push(type);
+    }
+
+    private TypeSymbol? PeekEnvironmentType() => _environmentType?.TryPeek(out var type) == true ? type : null;
+
+    private void PopEnvironmentType() => _environmentType?.Pop();
+
     private BoundBlockExpression BindBlockExpression(BlockExpressionContext context, DiagnosticList diagnostics)
     {
         var localScopeBinder = new LocalScopeBinder(this);
@@ -18,6 +30,18 @@ internal sealed partial class LocalScopeBinder
 
         var tail = context.Tail == null ? null : localScopeBinder.BindExpression(context.Tail, diagnostics);
         return new BoundBlockExpression(context, statements, tail);
+    }
+
+    public BoundExpression BindExpression(
+        ExpressionContext context,
+        TypeSymbol environmentType,
+        DiagnosticList diagnostics
+    )
+    {
+        PushEnvironmentType(environmentType);
+        var expression = BindExpression(context, diagnostics);
+        PopEnvironmentType();
+        return expression;
     }
 
     public BoundExpression BindExpression(ExpressionContext context, DiagnosticList diagnostics)
@@ -37,11 +61,11 @@ internal sealed partial class LocalScopeBinder
         };
     }
 
-    private static BoundLiteralExpression BindLiteral(LiteralContext context, DiagnosticList diagnostics)
+    private BoundLiteralExpression BindLiteral(LiteralContext context, DiagnosticList diagnostics)
     {
         (object value, TypeSymbol type) = context switch
         {
-            IntegerLiteralContext c => ((object)int.Parse(c.Value.Text.Replace("_", "")), TypeSymbol.Int32),
+            IntegerLiteralContext c => BindIntegerLiteral(c),
             TrueLiteralContext => (true, TypeSymbol.Bool),
             FalseLiteralContext => (false, TypeSymbol.Bool),
             StringLiteralContext c => (c.Value.Text.Trim('"'), TypeSymbol.String),
@@ -49,6 +73,19 @@ internal sealed partial class LocalScopeBinder
         };
 
         return new BoundLiteralExpression(context, value, type);
+    }
+
+    private (object, TypeSymbol) BindIntegerLiteral(IntegerLiteralContext context)
+    {
+        var environmentType = PeekEnvironmentType() ?? TypeSymbol.Int32;
+        switch (environmentType.NativeType)
+        {
+            case NativeType.Int64:
+                return (long.Parse(context.Value.Text), TypeSymbol.Int64);
+
+            default:
+                return (int.Parse(context.Value.Text), TypeSymbol.Int32);
+        }
     }
 
     private BoundNameExpression BindNameExpression(NameExpressionContext context, DiagnosticList diagnostics)
@@ -66,19 +103,14 @@ internal sealed partial class LocalScopeBinder
     private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)
     {
         var callee = BindExpression(context.Callee, diagnostics);
-        var argumentsBuilder = new ArrayBuilder<BoundExpression>(context.ArgumentList._Arguments.Count);
-        foreach (var argument in context.ArgumentList._Arguments)
-        {
-            var boundArgument = BindExpression(argument, diagnostics);
-            argumentsBuilder.Add(boundArgument);
-        }
-
-        var arguments = argumentsBuilder.MoveToImmutable();
-
         if (callee.Kind != BoundNodeKind.NameExpression)
         {
             diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
-            return new BoundCallExpression(context.Callee, FunctionSymbol.Missing, arguments);
+            return new BoundCallExpression(
+                context.Callee,
+                FunctionSymbol.Missing,
+                BindArgumentsUnchecked(context, diagnostics)
+            );
         }
 
         var nameExpression = (BoundNameExpression)callee;
@@ -92,27 +124,56 @@ internal sealed partial class LocalScopeBinder
                 );
             }
 
-            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
+            return new BoundCallExpression(
+                context,
+                FunctionSymbol.Missing,
+                BindArgumentsUnchecked(context, diagnostics)
+            );
         }
 
         if (nameExpression.ReferencedSymbol == FunctionSymbol.Missing)
-            return new BoundCallExpression(context, FunctionSymbol.Missing, arguments);
+        {
+            return new BoundCallExpression(
+                context,
+                FunctionSymbol.Missing,
+                BindArgumentsUnchecked(context, diagnostics)
+            );
+        }
 
         var functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
-        for (int i = 0; i < arguments.Length; i++)
+        var arguments = context.ArgumentList._Arguments;
+        var argumentsBuilder = new ArrayBuilder<BoundExpression>(arguments.Count);
+        for (var i = 0; i < arguments.Count; i++)
         {
             var parameter = functionSymbol.Parameters.ElementAtOrDefault(i);
             if (parameter == null)
             {
                 diagnostics.Add(context, DiagnosticMessages.FunctionOnlyExpectsNArguments(functionSymbol));
-                break;
+                argumentsBuilder.Add(BindExpression(arguments[i], diagnostics));
+                continue;
             }
 
-            var argument = arguments[i];
+            var argument = BindExpression(arguments[i], parameter.Type, diagnostics);
             TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
+            argumentsBuilder.Add(argument);
         }
 
-        return new BoundCallExpression(context, functionSymbol, arguments);
+        return new BoundCallExpression(context, functionSymbol, argumentsBuilder.MoveToImmutable());
+
+        ImmutableArray<BoundExpression> BindArgumentsUnchecked(
+            CallExpressionContext context,
+            DiagnosticList diagnostics
+        )
+        {
+            var argumentsBuilder = new ArrayBuilder<BoundExpression>(context.ArgumentList._Arguments.Count);
+            foreach (var argument in context.ArgumentList._Arguments)
+            {
+                var boundArgument = BindExpression(argument, diagnostics);
+                argumentsBuilder.Add(boundArgument);
+            }
+
+            return argumentsBuilder.MoveToImmutable();
+        }
     }
 
     private BoundAccessExpression BindAccessExpression(AccessExpressionContext context, DiagnosticList diagnostics)

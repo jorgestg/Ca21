@@ -1,6 +1,5 @@
 using System.CodeDom.Compiler;
 using System.Diagnostics;
-using System.Reflection;
 using Ca21.Binding;
 using Ca21.Symbols;
 
@@ -34,7 +33,8 @@ internal sealed class C99Backend
 
     private void Emit()
     {
-        _output.WriteLine("#include \"ca21.h\"");
+        _output.WriteLine("#include <stdint.h>");
+        _output.WriteLine("#include <stdbool.h>");
 
         Span<byte> lengthBytes = stackalloc byte[4];
         Span<char> lengthChars = stackalloc char[2];
@@ -207,6 +207,9 @@ internal sealed class C99Backend
             case NativeType.Int32:
                 _output.Write("int32_t");
                 break;
+            case NativeType.Int64:
+                _output.Write("int64_t");
+                break;
             case NativeType.Bool:
                 _output.Write("bool");
                 break;
@@ -214,8 +217,7 @@ internal sealed class C99Backend
                 _output.Write("char*");
                 break;
             default:
-                _output.Write(typeSymbol.Name);
-                break;
+                throw new UnreachableException();
         }
     }
 

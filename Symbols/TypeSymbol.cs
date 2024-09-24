@@ -15,6 +15,7 @@ internal enum NativeType
     None,
     Unit,
     Int32,
+    Int64,
     Bool,
     String
 }
@@ -24,6 +25,7 @@ internal abstract class TypeSymbol : Symbol
     public static new readonly TypeSymbol Missing = new NativeTypeSymbol("???", NativeType.None);
     public static readonly TypeSymbol Unit = new NativeTypeSymbol("unit", NativeType.Unit);
     public static readonly TypeSymbol Int32 = new NativeTypeSymbol("int32", NativeType.Int32);
+    public static readonly TypeSymbol Int64 = new NativeTypeSymbol("int64", NativeType.Int64);
     public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool", NativeType.Bool);
     public static readonly TypeSymbol String = new NativeTypeSymbol("string", NativeType.String);
 
