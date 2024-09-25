@@ -10,55 +10,50 @@ namespace Ca21.Binding;
 internal sealed partial class LocalScopeBinder
 {
     private Stack<TypeSymbol>? _environmentType;
-
-    private void PushEnvironmentType(TypeSymbol type)
-    {
-        _environmentType ??= new Stack<TypeSymbol>();
-        _environmentType.Push(type);
-    }
+    private Stack<TypeSymbol> EnviromentTypeStack => _environmentType ??= new();
 
     private TypeSymbol? PeekEnvironmentType() => _environmentType?.TryPeek(out var type) == true ? type : null;
 
-    private void PopEnvironmentType() => _environmentType?.Pop();
-
-    public BoundExpression BindBlockExpression(
-        BlockExpressionContext context,
-        TypeSymbol environmentType,
-        DiagnosticList diagnostics
+    private BoundExpression BindExpressionOrBlock(
+        ExpressionOrBlockContext context,
+        DiagnosticList diagnostics,
+        TypeSymbol? environmentType = null
     )
     {
-        PushEnvironmentType(environmentType);
-        var expression = BindBlockExpression(context, diagnostics);
-        PopEnvironmentType();
-        return expression;
+        return context switch
+        {
+            BlockExpressionContext c => BindBlockExpression(c, diagnostics, environmentType),
+            NonBlockExpressionContext c => BindExpression(c.Expression, diagnostics, environmentType),
+            _ => throw new UnreachableException()
+        };
     }
 
-    private BoundBlockExpression BindBlockExpression(BlockExpressionContext context, DiagnosticList diagnostics)
+    private BoundBlockExpression BindBlockExpression(
+        BlockExpressionContext context,
+        DiagnosticList diagnostics,
+        TypeSymbol? environmentType = null
+    )
     {
         var localScopeBinder = new LocalScopeBinder(this);
         var statements = context
             ._Statements.Select(statement => localScopeBinder.BindStatement(statement, diagnostics))
             .ToImmutableArray();
 
-        var tail = context.Tail == null ? null : localScopeBinder.BindExpression(context.Tail, diagnostics);
+        var tail =
+            context.Tail == null ? null : localScopeBinder.BindExpression(context.Tail, diagnostics, environmentType);
         return new BoundBlockExpression(context, statements, tail);
     }
 
-    public BoundExpression BindExpression(
+    private BoundExpression BindExpression(
         ExpressionContext context,
-        TypeSymbol expectedType,
-        DiagnosticList diagnostics
+        DiagnosticList diagnostics,
+        TypeSymbol? environmentType = null
     )
     {
-        PushEnvironmentType(expectedType);
-        var expression = BindExpression(context, diagnostics);
-        PopEnvironmentType();
-        return expression;
-    }
+        if (environmentType != null)
+            EnviromentTypeStack.Push(environmentType);
 
-    public BoundExpression BindExpression(ExpressionContext context, DiagnosticList diagnostics)
-    {
-        return context switch
+        BoundExpression expression = context switch
         {
             LiteralExpressionContext c => BindLiteral(c.Literal, diagnostics),
             NameExpressionContext c => BindNameExpression(c, diagnostics),
@@ -72,6 +67,11 @@ internal sealed partial class LocalScopeBinder
             AssignmentExpressionContext c => BindAssignmentExpression(c, diagnostics),
             _ => throw new UnreachableException()
         };
+
+        if (environmentType != null)
+            EnviromentTypeStack.Pop();
+
+        return expression;
     }
 
     private BoundLiteralExpression BindLiteral(LiteralContext context, DiagnosticList diagnostics)
@@ -144,15 +144,6 @@ internal sealed partial class LocalScopeBinder
             );
         }
 
-        if (nameExpression.ReferencedSymbol == FunctionSymbol.Missing)
-        {
-            return new BoundCallExpression(
-                context,
-                FunctionSymbol.Missing,
-                BindArgumentsUnchecked(context, diagnostics)
-            );
-        }
-
         var functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
         if (context.ArgumentList == null)
             return new BoundCallExpression(context, functionSymbol, []);
@@ -169,7 +160,7 @@ internal sealed partial class LocalScopeBinder
                 continue;
             }
 
-            var argument = BindExpression(arguments[i], parameter.Type, diagnostics);
+            var argument = BindExpression(arguments[i], diagnostics, parameter.Type);
             TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
             argumentsBuilder.Add(argument);
         }
@@ -222,27 +213,30 @@ internal sealed partial class LocalScopeBinder
         var referencedType = BindType(context.Structure, diagnostics);
         var structure = referencedType as StructureSymbol;
         if (referencedType != TypeSymbol.Missing && structure == null)
-        {
             diagnostics.Add(context.Structure, DiagnosticMessages.NameIsNotAType(context.Structure.GetText()));
-        }
 
         var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
         foreach (var fieldInitializerContext in context._Fields)
         {
+            FieldSymbol? field;
             IToken name;
             BoundExpression value;
+
             switch (fieldInitializerContext)
             {
                 case AssignmentFieldInitializerContext c:
                     name = c.Name;
-                    value = BindExpressionOrBlock(c.Value, diagnostics);
+                    field = structure?.FieldMap.GetValueOrDefault(name.Text);
+                    value = BindExpressionOrBlock(c.Value, diagnostics, field?.Type);
                     break;
 
                 case NameOnlyFieldInitializerContext c:
                     name = c.Name;
+                    field = structure?.FieldMap.GetValueOrDefault(name.Text);
+                    
                     var referencedSymbol = Lookup(name.Text) ?? Symbol.Missing;
                     if (referencedSymbol == Symbol.Missing)
-                        diagnostics.Add(name, DiagnosticMessages.NameNotFound(c.Name.Text));
+                        diagnostics.Add(c.Name, DiagnosticMessages.NameNotFound(name.Text));
 
                     value = new BoundNameExpression(c, referencedSymbol);
                     break;
@@ -251,20 +245,12 @@ internal sealed partial class LocalScopeBinder
                     throw new UnreachableException();
             }
 
-            if (structure == null)
-                continue;
-
-            var field = structure.FieldMap.GetValueOrDefault(name.Text);
-            if (field == null)
-            {
-                field = FieldSymbol.Missing;
+            if (field == null && structure != null)
                 diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(structure, name.Text));
-            }
 
+            field ??= FieldSymbol.Missing;
             TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);
-
-            var fieldInitializer = new BoundFieldInitializer(context, field, value);
-            fieldInitializers.Add(fieldInitializer);
+            fieldInitializers.Add(new BoundFieldInitializer(context, field, value));
         }
 
         return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
@@ -344,7 +330,7 @@ internal sealed partial class LocalScopeBinder
             return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
         }
 
-        var value = BindExpression(context.Value, name.ReferencedSymbol.Type, diagnostics);
+        var value = BindExpression(context.Value, diagnostics, name.ReferencedSymbol.Type);
         if (name.ReferencedSymbol.Kind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
             diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(name.ReferencedSymbol.Name));
 

@@ -30,7 +30,7 @@ internal static class Lowerer
     {
         var statements = default(ArrayBuilder<BoundStatement>);
         FlattenCore(block, ref statements);
-        return statements.Count == 0 ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
+        return statements.IsDefault ? block : new BoundBlock(block.Context, statements.DrainToImmutable());
 
         static void FlattenCore(BoundBlock block, ref ArrayBuilder<BoundStatement> statements)
         {

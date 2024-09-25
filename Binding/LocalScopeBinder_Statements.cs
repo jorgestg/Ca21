@@ -72,8 +72,9 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)
     {
-        var returnValue = BindExpressionOrBlock(context.Value, diagnostics);
-        TypeCheck(context, GetReturnType(), returnValue.Type, diagnostics);
+        var expectedType = GetReturnType();
+        var returnValue = BindExpressionOrBlock(context.Value, diagnostics, expectedType);
+        TypeCheck(context, expectedType, returnValue.Type, diagnostics);
         return new BoundReturnStatement(context, returnValue);
     }
 
@@ -84,29 +85,5 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
             diagnostics.Add(context, DiagnosticMessages.ExpressionCannotBeUsedAsStatement);
 
         return new BoundExpressionStatement(context, expression);
-    }
-
-    private BoundExpression BindExpressionOrBlock(ExpressionOrBlockContext context, DiagnosticList diagnostics)
-    {
-        return context switch
-        {
-            BlockExpressionContext c => BindBlockExpression(c, diagnostics),
-            NonBlockExpressionContext c => BindExpression(c.Expression, diagnostics),
-            _ => throw new UnreachableException()
-        };
-    }
-
-    private BoundExpression BindExpressionOrBlock(
-        ExpressionOrBlockContext context,
-        TypeSymbol environmentType,
-        DiagnosticList diagnostics
-    )
-    {
-        return context switch
-        {
-            BlockExpressionContext c => BindBlockExpression(c, environmentType, diagnostics),
-            NonBlockExpressionContext c => BindExpression(c.Expression, environmentType, diagnostics),
-            _ => throw new UnreachableException()
-        };
     }
 }

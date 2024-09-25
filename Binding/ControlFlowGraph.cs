@@ -47,9 +47,8 @@ internal sealed class ControlFlowGraph
                 if (block.Statements[^1].Kind != BoundNodeKind.GotoStatement)
                     return false;
 
-                var blockStartLabel = ((BoundLabelStatement)block.Statements[0]).Label;
-                var blockExitLabel = ((BoundGotoStatement)block.Statements[^1]).Target;
-                return blockStartLabel == blockExitLabel;
+                var exitLabel = ((BoundGotoStatement)block.Statements[^1]).Target;
+                return exitLabel == statement.Label;
             }
         }
 
