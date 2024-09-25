@@ -79,6 +79,23 @@ internal readonly struct BoundFieldInitializer(
     public BoundExpression Value { get; } = initializer;
 }
 
+internal sealed class BoundUnaryExpression : BoundExpression
+{
+    public BoundUnaryExpression(ParserRuleContext context, BoundOperator @operator, BoundExpression operand)
+        : base(context)
+    {
+        Operator = @operator;
+        Operand = operand;
+        ConstantValue = ConstantFolding.Fold(this);
+    }
+
+    public override BoundNodeKind Kind => BoundNodeKind.UnaryExpression;
+    public override TypeSymbol Type => Operator.ResultType;
+    public override BoundConstant ConstantValue { get; }
+    public BoundOperator Operator { get; }
+    public BoundExpression Operand { get; }
+}
+
 internal sealed class BoundNameExpression(ParserRuleContext context, Symbol referencedSymbol) : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.NameExpression;
@@ -91,7 +108,7 @@ internal sealed class BoundBinaryExpression : BoundExpression
     public BoundBinaryExpression(
         ParserRuleContext context,
         BoundExpression left,
-        BoundBinaryOperator @operator,
+        BoundOperator @operator,
         BoundExpression right
     )
         : base(context)
@@ -106,7 +123,7 @@ internal sealed class BoundBinaryExpression : BoundExpression
     public override TypeSymbol Type => Operator.ResultType;
     public override BoundConstant ConstantValue { get; }
     public BoundExpression Left { get; }
-    public BoundBinaryOperator Operator { get; }
+    public BoundOperator Operator { get; }
     public BoundExpression Right { get; }
 }
 

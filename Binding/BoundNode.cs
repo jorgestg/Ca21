@@ -17,6 +17,7 @@ internal enum BoundNodeKind
     CallExpression,
     AccessExpression,
     StructureLiteralExpression,
+    UnaryExpression,
     NameExpression,
     BinaryExpression,
     AssignmentExpression

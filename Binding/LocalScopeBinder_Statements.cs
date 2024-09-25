@@ -47,7 +47,8 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundIfStatement BindIfStatement(IfStatementContext context, DiagnosticList diagnostics)
     {
-        var condition = BindExpression(context.Condition, TypeSymbol.Bool, diagnostics);
+        var condition = BindExpression(context.Condition, diagnostics);
+        TypeCheck(context.Condition, TypeSymbol.Bool, condition.Type, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
         if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
@@ -58,7 +59,8 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundWhileStatement BindWhileStatement(WhileStatementContext context, DiagnosticList diagnostics)
     {
-        var condition = BindExpression(context.Condition, TypeSymbol.Bool, diagnostics);
+        var condition = BindExpression(context.Condition, diagnostics);
+        TypeCheck(context.Condition, TypeSymbol.Bool, condition.Type, diagnostics);
         var body = BindBlock(context.Body, diagnostics);
         if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
@@ -78,7 +80,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
     private BoundExpressionStatement BindExpressionStatement(ExpressionContext context, DiagnosticList diagnostics)
     {
         var expression = BindExpression(context, diagnostics);
-        if (expression is not BoundAssignmentExpression and not BoundCallExpression)
+        if (expression.Kind is not BoundNodeKind.AssignmentExpression and not BoundNodeKind.CallExpression)
             diagnostics.Add(context, DiagnosticMessages.ExpressionCannotBeUsedAsStatement);
 
         return new BoundExpressionStatement(context, expression);
@@ -90,6 +92,20 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
         {
             BlockExpressionContext c => BindBlockExpression(c, diagnostics),
             NonBlockExpressionContext c => BindExpression(c.Expression, diagnostics),
+            _ => throw new UnreachableException()
+        };
+    }
+
+    private BoundExpression BindExpressionOrBlock(
+        ExpressionOrBlockContext context,
+        TypeSymbol environmentType,
+        DiagnosticList diagnostics
+    )
+    {
+        return context switch
+        {
+            BlockExpressionContext c => BindBlockExpression(c, environmentType, diagnostics),
+            NonBlockExpressionContext c => BindExpression(c.Expression, environmentType, diagnostics),
             _ => throw new UnreachableException()
         };
     }

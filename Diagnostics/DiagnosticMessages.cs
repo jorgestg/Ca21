@@ -11,11 +11,15 @@ internal static class DiagnosticMessages
 
     public static string NameNotFound(string name) => $"Name `{name}` not found";
 
+    public static string UnaryOperatorTypeMismatch(string op, TypeSymbol operand) =>
+        $"Operator `{op}` cannot be applied to operand of type `{operand.Name}`";
+
     public static string BinaryOperatorTypeMismatch(string op, TypeSymbol left, TypeSymbol right) =>
         $"Operator `{op}` cannot be applied to operands of type `{left.Name}` and `{right.Name}`";
 
     public const string ExpressionIsNotAssignable = "Expression is not assignable";
-    public const string SymbolIsNotAssignable = "Symbol is not assignable";
+
+    public static string SymbolIsNotAssignable(string name) => $"`{name}` is not assignable";
 
     public static string NameIsImmutable(string name) => $"`{name}` is immutable";
 

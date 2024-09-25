@@ -78,6 +78,7 @@ expression
     | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
     | Left=expression '.' Right=Identifier #AccessExpression
     | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)) '}' #StructureLiteralExpression
+    | Operator=('!'|'-') Operand=expression #UnaryExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
@@ -85,7 +86,7 @@ expression
     ;
 
 fieldInitializer
-    : Name=Identifier '=' Value=expression #AssignmentFieldInitializer
+    : Name=Identifier '=' Value=expressionOrBlock #AssignmentFieldInitializer
     | Name=Identifier #NameOnlyFieldInitializer
     ;
 
@@ -105,6 +106,7 @@ literal
 ExternKeyword: 'extern';
 ExportKeyword: 'export';
 FuncKeyword: 'func';
+ElseKeyword: 'else';
 LetKeyword: 'let';
 MutKeyword: 'mut';
 IfKeyword: 'if';
@@ -133,6 +135,7 @@ RightBrace: '}';
 Dot: '.';
 
 // Operators
+Bang: '!';
 Star: '*';
 Slash: '/';
 Percentage: '%';

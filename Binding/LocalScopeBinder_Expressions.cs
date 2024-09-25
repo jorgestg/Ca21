@@ -21,6 +21,18 @@ internal sealed partial class LocalScopeBinder
 
     private void PopEnvironmentType() => _environmentType?.Pop();
 
+    public BoundExpression BindBlockExpression(
+        BlockExpressionContext context,
+        TypeSymbol environmentType,
+        DiagnosticList diagnostics
+    )
+    {
+        PushEnvironmentType(environmentType);
+        var expression = BindBlockExpression(context, diagnostics);
+        PopEnvironmentType();
+        return expression;
+    }
+
     private BoundBlockExpression BindBlockExpression(BlockExpressionContext context, DiagnosticList diagnostics)
     {
         var localScopeBinder = new LocalScopeBinder(this);
@@ -41,7 +53,6 @@ internal sealed partial class LocalScopeBinder
         PushEnvironmentType(expectedType);
         var expression = BindExpression(context, diagnostics);
         PopEnvironmentType();
-        TypeCheck(context, expected: expectedType, actual: expression.Type, diagnostics);
         return expression;
     }
 
@@ -54,6 +65,7 @@ internal sealed partial class LocalScopeBinder
             CallExpressionContext c => BindCallExpression(c, diagnostics),
             AccessExpressionContext c => BindAccessExpression(c, diagnostics),
             StructureLiteralExpressionContext c => BindStructureLiteralExpression(c, diagnostics),
+            UnaryExpressionContext c => BindUnaryExpression(c, diagnostics),
             FactorExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             TermExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             ComparisonExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
@@ -142,6 +154,9 @@ internal sealed partial class LocalScopeBinder
         }
 
         var functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
+        if (context.ArgumentList == null)
+            return new BoundCallExpression(context, functionSymbol, []);
+
         var arguments = context.ArgumentList._Arguments;
         var argumentsBuilder = new ArrayBuilder<BoundExpression>(arguments.Count);
         for (var i = 0; i < arguments.Count; i++)
@@ -155,6 +170,7 @@ internal sealed partial class LocalScopeBinder
             }
 
             var argument = BindExpression(arguments[i], parameter.Type, diagnostics);
+            TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
             argumentsBuilder.Add(argument);
         }
 
@@ -165,6 +181,9 @@ internal sealed partial class LocalScopeBinder
             DiagnosticList diagnostics
         )
         {
+            if (context.ArgumentList == null)
+                return [];
+
             var argumentsBuilder = new ArrayBuilder<BoundExpression>(context.ArgumentList._Arguments.Count);
             foreach (var argument in context.ArgumentList._Arguments)
             {
@@ -251,6 +270,27 @@ internal sealed partial class LocalScopeBinder
         return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
     }
 
+    private BoundUnaryExpression BindUnaryExpression(UnaryExpressionContext context, DiagnosticList diagnostics)
+    {
+        var operand = BindExpression(context.Operand, diagnostics);
+        var operatorKind = context.Operator.Type switch
+        {
+            Minus => BoundOperatorKind.Negation,
+            Bang => BoundOperatorKind.LogicalNot,
+            _ => throw new UnreachableException()
+        };
+
+        if (!BoundOperator.TryBind(operatorKind, operand.Type, out var boundOp))
+        {
+            diagnostics.Add(
+                context.Operator,
+                DiagnosticMessages.UnaryOperatorTypeMismatch(context.Operator.Text, operand.Type)
+            );
+        }
+
+        return new BoundUnaryExpression(context, boundOp, operand);
+    }
+
     private BoundBinaryExpression BindBinaryExpression(
         ExpressionContext context,
         ExpressionContext left,
@@ -263,19 +303,19 @@ internal sealed partial class LocalScopeBinder
         var boundRight = BindExpression(right, diagnostics);
         var binaryOpKind = op.Type switch
         {
-            Star => BoundBinaryOperatorKind.Multiplication,
-            Slash => BoundBinaryOperatorKind.Division,
-            Percentage => BoundBinaryOperatorKind.Remainder,
-            Plus => BoundBinaryOperatorKind.Addition,
-            Minus => BoundBinaryOperatorKind.Subtraction,
-            GreaterThan => BoundBinaryOperatorKind.Greater,
-            GreaterThanOrEqual => BoundBinaryOperatorKind.GreaterOrEqual,
-            LessThan => BoundBinaryOperatorKind.Less,
-            LessThanOrEqual => BoundBinaryOperatorKind.LessOrEqual,
+            Star => BoundOperatorKind.Multiplication,
+            Slash => BoundOperatorKind.Division,
+            Percentage => BoundOperatorKind.Remainder,
+            Plus => BoundOperatorKind.Addition,
+            Minus => BoundOperatorKind.Subtraction,
+            GreaterThan => BoundOperatorKind.Greater,
+            GreaterThanOrEqual => BoundOperatorKind.GreaterOrEqual,
+            LessThan => BoundOperatorKind.Less,
+            LessThanOrEqual => BoundOperatorKind.LessOrEqual,
             _ => throw new UnreachableException()
         };
 
-        if (!BoundBinaryOperator.TryBind(binaryOpKind, boundLeft.Type, out var boundOp))
+        if (!BoundOperator.TryBind(binaryOpKind, boundLeft.Type, out var boundOp))
         {
             diagnostics.Add(
                 context,
@@ -292,23 +332,23 @@ internal sealed partial class LocalScopeBinder
     )
     {
         var assignee = BindExpression(context.Assignee, diagnostics);
-        var value = BindExpression(context.Value, diagnostics);
         if (assignee is not BoundNameExpression name)
         {
             diagnostics.Add(assignee.Context, DiagnosticMessages.ExpressionIsNotAssignable);
-            return new BoundAssignmentExpression(context, Symbol.Missing, value);
+            return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
         }
 
-        if (name.ReferencedSymbol is not SourceLocalSymbol local)
+        if (name.ReferencedSymbol.Kind is not SymbolKind.Local and not SymbolKind.Field)
         {
-            diagnostics.Add(assignee.Context, DiagnosticMessages.SymbolIsNotAssignable);
-            return new BoundAssignmentExpression(context, Symbol.Missing, value);
+            diagnostics.Add(assignee.Context, DiagnosticMessages.SymbolIsNotAssignable(name.ReferencedSymbol.Name));
+            return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
         }
 
-        if (!local.IsMutable)
-            diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(local.Name));
+        var value = BindExpression(context.Value, name.ReferencedSymbol.Type, diagnostics);
+        if (name.ReferencedSymbol.Kind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
+            diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(name.ReferencedSymbol.Name));
 
-        TypeCheck(context, local.Type, value.Type, diagnostics);
-        return new BoundAssignmentExpression(context, local, value);
+        TypeCheck(context, name.ReferencedSymbol.Type, value.Type, diagnostics);
+        return new BoundAssignmentExpression(context, name.ReferencedSymbol, value);
     }
 }

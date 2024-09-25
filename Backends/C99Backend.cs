@@ -161,14 +161,19 @@ internal sealed class C99Backend
     private static string MangleName(string name)
     {
         return string.Create(
-            name.Length + 9,
+            name.Length + 11,
             name,
             (buffer, symbol) =>
             {
                 name.AsSpan().CopyTo(buffer);
                 buffer[name.Length] = '_';
+
+                var randomNumber = Random.Shared.Next(0x0, 0xFF);
                 buffer = buffer.Slice(name.Length + 1);
+                randomNumber.TryFormat(buffer, out _, "X2");
+
                 var hashCode = symbol.GetHashCode();
+                buffer = buffer.Slice(2);
                 hashCode.TryFormat(buffer, out _, "X8");
             }
         );
@@ -406,6 +411,9 @@ internal sealed class C99Backend
             case BoundNodeKind.StructureLiteralExpression:
                 EmitStructureLiteralExpression((BoundStructureLiteralExpression)expression);
                 break;
+            case BoundNodeKind.UnaryExpression:
+                EmitUnaryExpression((BoundUnaryExpression)expression);
+                break;
             case BoundNodeKind.NameExpression:
                 EmitNameExpression((BoundNameExpression)expression);
                 break;
@@ -461,6 +469,20 @@ internal sealed class C99Backend
         _output.Write(expression.Structure.Name);
     }
 
+    private void EmitUnaryExpression(BoundUnaryExpression expression)
+    {
+        _output.Write(
+            expression.Operator.Kind switch
+            {
+                BoundOperatorKind.LogicalNot => '!',
+                BoundOperatorKind.Negation => '-',
+                _ => throw new UnreachableException()
+            }
+        );
+
+        EmitExpression(expression.Operand);
+    }
+
     private void EmitNameExpression(BoundNameExpression expression) => EmitMangledName(expression.ReferencedSymbol);
 
     private void EmitBinaryExpression(BoundBinaryExpression expression)
@@ -470,18 +492,18 @@ internal sealed class C99Backend
         _output.Write(
             expression.Operator.Kind switch
             {
-                BoundBinaryOperatorKind.Addition => "+",
-                BoundBinaryOperatorKind.Subtraction => "-",
-                BoundBinaryOperatorKind.Multiplication => "*",
-                BoundBinaryOperatorKind.Division => "/",
-                BoundBinaryOperatorKind.Remainder => "%",
+                BoundOperatorKind.Addition => "+",
+                BoundOperatorKind.Subtraction => "-",
+                BoundOperatorKind.Multiplication => "*",
+                BoundOperatorKind.Division => "/",
+                BoundOperatorKind.Remainder => "%",
                 // BoundBinaryOperatorKind.Equal => "==",
                 // BoundBinaryOperatorKind.NotEqual => "!=",
-                BoundBinaryOperatorKind.Less
+                BoundOperatorKind.Less
                     => "<",
-                BoundBinaryOperatorKind.LessOrEqual => "<=",
-                BoundBinaryOperatorKind.Greater => ">",
-                BoundBinaryOperatorKind.GreaterOrEqual => ">=",
+                BoundOperatorKind.LessOrEqual => "<=",
+                BoundOperatorKind.Greater => ">",
+                BoundOperatorKind.GreaterOrEqual => ">=",
                 _ => throw new UnreachableException()
             }
         );
