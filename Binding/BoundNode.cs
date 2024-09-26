@@ -13,6 +13,7 @@ internal enum BoundNodeKind
     ExpressionStatement,
     Block,
     BlockExpression,
+    CastExpression,
     LiteralExpression,
     CallExpression,
     AccessExpression,

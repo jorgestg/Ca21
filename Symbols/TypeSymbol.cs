@@ -32,6 +32,22 @@ internal abstract class TypeSymbol : Symbol
     public override SymbolKind Kind => SymbolKind.Type;
     public virtual NativeType NativeType => NativeType.None;
 
+    public static TypeSymbol? Unify(TypeSymbol a, TypeSymbol b)
+    {
+        if (a == Missing || b == Missing)
+            return Missing;
+
+        if (a.Equals(b))
+            return a;
+
+        return (a.NativeType, b.NativeType) switch
+        {
+            (NativeType.Int32, NativeType.Int64) => Int64,
+            (NativeType.Int64, NativeType.Int32) => Int64,
+            _ => null
+        };
+    }
+
     private sealed class NativeTypeSymbol(string name, NativeType nativeType) : TypeSymbol
     {
         public override ParserRuleContext Context => throw new InvalidOperationException();

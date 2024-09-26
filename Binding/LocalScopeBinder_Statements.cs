@@ -47,8 +47,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundIfStatement BindIfStatement(IfStatementContext context, DiagnosticList diagnostics)
     {
-        var condition = BindExpression(context.Condition, diagnostics);
-        TypeCheck(context.Condition, TypeSymbol.Bool, condition.Type, diagnostics);
+        var condition = BindExpression(context.Condition, diagnostics, TypeSymbol.Bool);
         var body = BindBlock(context.Body, diagnostics);
         if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
@@ -59,8 +58,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundWhileStatement BindWhileStatement(WhileStatementContext context, DiagnosticList diagnostics)
     {
-        var condition = BindExpression(context.Condition, diagnostics);
-        TypeCheck(context.Condition, TypeSymbol.Bool, condition.Type, diagnostics);
+        var condition = BindExpression(context.Condition, diagnostics, TypeSymbol.Bool);
         var body = BindBlock(context.Body, diagnostics);
         if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
@@ -72,9 +70,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)
     {
-        var expectedType = GetReturnType();
-        var returnValue = BindExpressionOrBlock(context.Value, diagnostics, expectedType);
-        TypeCheck(context, expectedType, returnValue.Type, diagnostics);
+        var returnValue = BindExpressionOrBlock(context.Value, diagnostics, GetReturnType());
         return new BoundReturnStatement(context, returnValue);
     }
 

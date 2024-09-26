@@ -69,7 +69,10 @@ internal sealed partial class LocalScopeBinder
         };
 
         if (environmentType != null)
+        {
             EnviromentTypeStack.Pop();
+            expression = BindConversion(expression, environmentType, diagnostics);
+        }
 
         return expression;
     }
@@ -161,7 +164,6 @@ internal sealed partial class LocalScopeBinder
             }
 
             var argument = BindExpression(arguments[i], diagnostics, parameter.Type);
-            TypeCheck(argument.Context, parameter.Type, argument.Type, diagnostics);
             argumentsBuilder.Add(argument);
         }
 
@@ -198,7 +200,6 @@ internal sealed partial class LocalScopeBinder
         )
         {
             diagnostics.Add(context.Right, DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text));
-
             referencedField = FieldSymbol.Missing;
         }
 
@@ -218,7 +219,7 @@ internal sealed partial class LocalScopeBinder
         var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
         foreach (var fieldInitializerContext in context._Fields)
         {
-            FieldSymbol? field;
+            FieldSymbol field;
             IToken name;
             BoundExpression value;
 
@@ -226,30 +227,28 @@ internal sealed partial class LocalScopeBinder
             {
                 case AssignmentFieldInitializerContext c:
                     name = c.Name;
-                    field = structure?.FieldMap.GetValueOrDefault(name.Text);
-                    value = BindExpressionOrBlock(c.Value, diagnostics, field?.Type);
+                    field = structure?.FieldMap.GetValueOrDefault(name.Text) ?? FieldSymbol.Missing;
+                    value = BindExpressionOrBlock(c.Value, diagnostics, field.Type);
                     break;
 
                 case NameOnlyFieldInitializerContext c:
                     name = c.Name;
-                    field = structure?.FieldMap.GetValueOrDefault(name.Text);
-                    
+
                     var referencedSymbol = Lookup(name.Text) ?? Symbol.Missing;
                     if (referencedSymbol == Symbol.Missing)
                         diagnostics.Add(c.Name, DiagnosticMessages.NameNotFound(name.Text));
 
-                    value = new BoundNameExpression(c, referencedSymbol);
+                    field = structure?.FieldMap.GetValueOrDefault(name.Text) ?? FieldSymbol.Missing;
+                    value = BindConversion(new BoundNameExpression(c, referencedSymbol), field.Type, diagnostics);
                     break;
 
                 default:
                     throw new UnreachableException();
             }
 
-            if (field == null && structure != null)
+            if (field == FieldSymbol.Missing && structure != null)
                 diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(structure, name.Text));
 
-            field ??= FieldSymbol.Missing;
-            TypeCheck(fieldInitializerContext, field.Type, value.Type, diagnostics);
             fieldInitializers.Add(new BoundFieldInitializer(context, field, value));
         }
 
@@ -301,7 +300,7 @@ internal sealed partial class LocalScopeBinder
             _ => throw new UnreachableException()
         };
 
-        if (!BoundOperator.TryBind(binaryOpKind, boundLeft.Type, out var boundOp))
+        if (!BoundOperator.TryBind(binaryOpKind, boundLeft.Type, boundRight.Type, out var boundOp))
         {
             diagnostics.Add(
                 context,
@@ -334,7 +333,6 @@ internal sealed partial class LocalScopeBinder
         if (name.ReferencedSymbol.Kind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
             diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(name.ReferencedSymbol.Name));
 
-        TypeCheck(context, name.ReferencedSymbol.Type, value.Type, diagnostics);
         return new BoundAssignmentExpression(context, name.ReferencedSymbol, value);
     }
 }

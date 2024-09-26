@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Antlr4.Runtime;
 using Ca21.Diagnostics;
 using Ca21.Symbols;
 using static Ca21.Antlr.Ca21Parser;
@@ -35,20 +34,24 @@ internal abstract class Binder
         return Parent.GetReturnType();
     }
 
-    protected static void TypeCheck(
-        ParserRuleContext context,
-        TypeSymbol expected,
-        TypeSymbol actual,
+    protected static BoundExpression BindConversion(
+        BoundExpression expression,
+        TypeSymbol targetType,
         DiagnosticList diagnostics
     )
     {
-        if (expected.Equals(actual))
-            return;
+        var unifiedType = TypeSymbol.Unify(targetType, expression.Type);
+        if (unifiedType == targetType)
+        {
+            return expression.Type != targetType
+                ? new BoundCastExpression(expression.Context, expression, targetType)
+                : expression;
+        }
 
         // An error should be already reported in these cases
-        if (expected == TypeSymbol.Missing || actual == TypeSymbol.Missing)
-            return;
+        if (unifiedType != TypeSymbol.Missing)
+            diagnostics.Add(expression.Context, DiagnosticMessages.TypeMismatch(targetType, expression.Type));
 
-        diagnostics.Add(context, DiagnosticMessages.TypeMismatch(expected, actual));
+        return expression;
     }
 }

@@ -228,9 +228,6 @@ internal sealed class C99Backend
 
     private void EmitFunction(SourceFunctionSymbol functionSymbol)
     {
-        if (!functionSymbol.IsExported)
-            _output.WriteLine("static ");
-
         _locals.Clear();
 
         foreach (var parameter in functionSymbol.Parameters)
@@ -270,6 +267,9 @@ internal sealed class C99Backend
 
     private void EmitFunctionSignature(SourceFunctionSymbol functionSymbol, bool emitSemicolon)
     {
+        if (!functionSymbol.IsExtern && !functionSymbol.IsExported)
+            _output.Write("static ");
+
         EmitTypeReference(functionSymbol.ReturnType);
         _output.Write(' ');
         EmitMangledName(functionSymbol);
@@ -399,6 +399,9 @@ internal sealed class C99Backend
     {
         switch (expression.Kind)
         {
+            case BoundNodeKind.CastExpression:
+                EmitCastExpression((BoundCastExpression)expression);
+                break;
             case BoundNodeKind.LiteralExpression:
                 EmitLiteralExpression((BoundLiteralExpression)expression);
                 break;
@@ -426,6 +429,16 @@ internal sealed class C99Backend
             default:
                 throw new UnreachableException();
         }
+    }
+
+    private void EmitCastExpression(BoundCastExpression expression)
+    {
+        _output.Write('(');
+        _output.Write('(');
+        EmitTypeReference(expression.Type);
+        _output.Write(')');
+        EmitExpression(expression.Expression);
+        _output.Write(')');
     }
 
     private void EmitLiteralExpression(BoundLiteralExpression expression)

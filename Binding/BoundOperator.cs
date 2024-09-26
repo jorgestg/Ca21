@@ -57,6 +57,23 @@ internal readonly struct BoundOperator
     public TypeSymbol OperandType { get; }
     public TypeSymbol ResultType { get; }
 
+    public static bool TryBind(
+        BoundOperatorKind kind,
+        TypeSymbol left,
+        TypeSymbol right,
+        out BoundOperator boundOperator
+    )
+    {
+        var operandType = TypeSymbol.Unify(left, right);
+        if (operandType == null)
+        {
+            boundOperator = new BoundOperator(kind, TypeSymbol.Missing, TypeSymbol.Missing);
+            return false;
+        }
+
+        return TryBind(kind, operandType, out boundOperator);
+    }
+
     public static bool TryBind(BoundOperatorKind kind, TypeSymbol operandType, out BoundOperator boundOperator)
     {
         foreach (var op in Operators)

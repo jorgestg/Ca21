@@ -23,6 +23,14 @@ internal sealed class BoundBlockExpression(
     public BoundExpression? TailExpression { get; } = tailExpression;
 }
 
+internal sealed class BoundCastExpression(ParserRuleContext context, BoundExpression expression, TypeSymbol type)
+    : BoundExpression(context)
+{
+    public override BoundNodeKind Kind => BoundNodeKind.CastExpression;
+    public BoundExpression Expression { get; } = expression;
+    public override TypeSymbol Type { get; } = type;
+}
+
 internal sealed class BoundLiteralExpression(ParserRuleContext context, object value, TypeSymbol type)
     : BoundExpression(context)
 {
