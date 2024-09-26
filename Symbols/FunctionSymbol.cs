@@ -32,7 +32,6 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
         Context = context;
         Binder = new FunctionBinder(this);
         ContainingModule = module;
-        InitializeProperties();
     }
 
     public override FunctionDefinitionContext Context { get; }

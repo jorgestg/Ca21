@@ -35,6 +35,7 @@ internal sealed class C99Backend
     {
         _output.WriteLine("#include <stdint.h>");
         _output.WriteLine("#include <stdbool.h>");
+        _output.WriteLine();
 
         Span<byte> lengthBytes = stackalloc byte[4];
         Span<char> lengthChars = stackalloc char[2];
@@ -86,11 +87,14 @@ internal sealed class C99Backend
             }
 
             EmitStructure(structure);
+            _output.WriteLine();
         }
 
         var functions = moduleSymbol.GetMembers<SourceFunctionSymbol>();
         foreach (var functionSymbol in functions)
             EmitFunctionSignature(functionSymbol, emitSemicolon: true);
+
+        _output.WriteLine();
 
         foreach (var functionSymbol in functions)
         {
@@ -98,6 +102,7 @@ internal sealed class C99Backend
                 continue;
 
             EmitFunction(functionSymbol);
+            _output.WriteLine();
         }
     }
 
@@ -182,8 +187,9 @@ internal sealed class C99Backend
     private void EmitStructure(StructureSymbol structureSymbol)
     {
         _output.Write("struct ");
-        _output.WriteLine(structureSymbol.Name);
-        _output.WriteLine("{");
+        EmitMangledName(structureSymbol);
+        _output.WriteLine();
+        _output.WriteLine('{');
         _output.Indent++;
 
         foreach (var field in structureSymbol.Fields)
