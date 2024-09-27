@@ -2,7 +2,6 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using Antlr4.Runtime;
 using Ca21.Binding;
 using Ca21.Diagnostics;
@@ -68,22 +67,49 @@ internal sealed class FunctionTypeSymbol(FunctionSymbol functionSymbol) : TypeSy
             if (_name != null)
                 return _name;
 
+            if (FunctionSymbol.Parameters.Length == 0)
+                return _name = $"func () {FunctionSymbol.ReturnType.Name}";
+
             if (FunctionSymbol.Parameters.Length == 1)
                 return _name = $"func ({FunctionSymbol.Parameters[0].Type.Name}) {FunctionSymbol.ReturnType.Name}";
 
-            var stringBuilder = new StringBuilder();
-            stringBuilder.Append("func (");
+            const string start = "func (";
+            const string end = ") ";
+            var length =
+                start.Length
+                + FunctionSymbol.Parameters.Sum(p => p.Type.Name.Length)
+                + (FunctionSymbol.Parameters.Length - 1) * 2 // ", "
+                + end.Length
+                + FunctionSymbol.ReturnType.Name.Length;
 
-            foreach (var parameter in FunctionSymbol.Parameters)
-            {
-                if (stringBuilder.Length > 0)
-                    stringBuilder.Append(", ");
+            return _name = string.Create(
+                length,
+                this,
+                static (buffer, @this) =>
+                {
+                    start.CopyTo(buffer);
+                    buffer = buffer.Slice(start.Length);
 
-                stringBuilder.Append(parameter.Type.Name);
-            }
+                    for (var i = 0; i < @this.FunctionSymbol.Parameters.Length; i++)
+                    {
+                        var parameter = @this.FunctionSymbol.Parameters[i];
+                        parameter.Type.Name.CopyTo(buffer.Slice(i));
+                        buffer = buffer.Slice(parameter.Type.Name.Length);
 
-            stringBuilder.Append(") ").Append(FunctionSymbol.ReturnType.Name);
-            return _name = stringBuilder.ToString();
+                        if (i < @this.FunctionSymbol.Parameters.Length - 1)
+                        {
+                            buffer[0] = ',';
+                            buffer[1] = ' ';
+                            buffer = buffer.Slice(2);
+                        }
+                    }
+
+                    end.CopyTo(buffer);
+                    buffer = buffer.Slice(end.Length);
+
+                    @this.FunctionSymbol.ReturnType.Name.CopyTo(buffer);
+                }
+            );
         }
     }
 
@@ -130,15 +156,15 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
     public ModuleSymbol ContainingModule { get; }
 
     /// <summary>
-    /// Cycle check status: Not started = 0, Running = 1, Done = 2
+    /// Cycle check status: Not started = null, Running = false, Done = true
     /// </summary>
-    private int _cycleCheckStatus;
+    private bool? _cycleCheckDone;
     private readonly DiagnosticList _diagnostics = new();
     public ImmutableArray<Diagnostic> Diagnostics
     {
         get
         {
-            if (_cycleCheckStatus == 0)
+            if (_cycleCheckDone == null)
                 CheckForCycles();
 
             return _diagnostics.GetImmutableArray();
@@ -200,14 +226,14 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
     private void CheckForCycles(FieldSymbol? source = null)
     {
         // If this method got called while we're checking for cycles, means we've found a cycle.
-        if (_cycleCheckStatus == 1)
+        if (_cycleCheckDone == false)
         {
             Debug.Assert(source != null);
             _diagnostics.Add(source.Context, DiagnosticMessages.CycleDetected((SourceFieldSymbol)source));
             return;
         }
 
-        _cycleCheckStatus = 1;
+        _cycleCheckDone = false;
 
         foreach (var field in Fields)
         {
@@ -215,6 +241,6 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
                 structure.CheckForCycles(field);
         }
 
-        _cycleCheckStatus = 2;
+        _cycleCheckDone = true;
     }
 }

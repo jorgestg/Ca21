@@ -5,31 +5,42 @@ using Ca21.Antlr;
 using Ca21.Backends;
 using Ca21.Symbols;
 using Ca21.Text;
+using static Ca21.Antlr.Ca21Parser;
 
 var rootCommand = new RootCommand("Ca21 Compiler CLI");
 
-var fileNameArgument = new Argument<string>("fileName", "The source file to compile");
-rootCommand.AddArgument(fileNameArgument);
+var filesArgument = new Argument<IEnumerable<string>>("file", "The source file(s) to compile")
+{
+    Arity = ArgumentArity.OneOrMore
+};
+
+rootCommand.AddArgument(filesArgument);
 
 var outOption = new Option<string?>("--out", "The output filename");
 outOption.AddAlias("-o");
 rootCommand.AddOption(outOption);
 
-rootCommand.SetHandler(Compile, fileNameArgument, outOption);
+rootCommand.SetHandler(Compile, filesArgument, outOption);
 rootCommand.Invoke(args);
 
-static void Compile(string fileName, string? outputPath)
+static void Compile(IEnumerable<string> files, string? outputPath)
 {
     try
     {
-        var source = File.ReadAllText(fileName);
-        var sourceText = new SourceText(fileName, source.AsMemory());
-        var charStream = CharStreams.fromString(source);
-        SourceTextMap.Register(charStream, sourceText);
+        var rootsBuilder = new ArrayBuilder<CompilationUnitContext>(files.Count());
+        foreach (var file in files)
+        {
+            var source = File.ReadAllText(file);
+            var sourceText = new SourceText(file, source.AsMemory());
+            var charStream = CharStreams.fromString(source);
+            SourceTextMap.Register(charStream, sourceText);
 
-        var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
-        var compilationUnit = parser.compilationUnit();
-        var module = new ModuleSymbol(compilationUnit, "main");
+            var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
+            var compilationUnit = parser.compilationUnit();
+            rootsBuilder.Add(compilationUnit);
+        }
+
+        var module = new ModuleSymbol(rootsBuilder.MoveToImmutable(), "main");
         var compiler = Compiler.Compile(module);
         if (!compiler.Diagnostics.Any())
         {
