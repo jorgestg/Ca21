@@ -1,4 +1,5 @@
 ﻿using System.CommandLine;
+using System.Diagnostics;
 using Antlr4.Runtime;
 using Ca21;
 using Ca21.Antlr;
@@ -9,7 +10,7 @@ using static Ca21.Antlr.Ca21Parser;
 
 var rootCommand = new RootCommand("Ca21 Compiler CLI");
 
-var filesArgument = new Argument<IEnumerable<string>>("file", "The source file(s) to compile")
+var filesArgument = new Argument<IList<string>>("file", "The source file(s) to compile")
 {
     Arity = ArgumentArity.OneOrMore
 };
@@ -20,14 +21,17 @@ var outOption = new Option<string?>("--out", "The output filename");
 outOption.AddAlias("-o");
 rootCommand.AddOption(outOption);
 
-rootCommand.SetHandler(Compile, filesArgument, outOption);
+var transpileOption = new Option<bool>("--transpile", "Just output C code");
+rootCommand.AddOption(transpileOption);
+
+rootCommand.SetHandler(Compile, filesArgument, outOption, transpileOption);
 rootCommand.Invoke(args);
 
-static void Compile(IEnumerable<string> files, string? outputPath)
+static void Compile(IList<string> files, string? outputPath, bool transpile)
 {
     try
     {
-        var rootsBuilder = new ArrayBuilder<CompilationUnitContext>(files.Count());
+        var rootsBuilder = new ArrayBuilder<CompilationUnitContext>(files.Count);
         foreach (var file in files)
         {
             var source = File.ReadAllText(file);
@@ -42,31 +46,58 @@ static void Compile(IEnumerable<string> files, string? outputPath)
 
         var module = new ModuleSymbol(rootsBuilder.MoveToImmutable(), "main");
         var compiler = Compiler.Compile(module);
-        if (!compiler.Diagnostics.Any())
+        if (compiler.Diagnostics.Any())
         {
-            using TextWriter writer = outputPath == null ? Console.Out : new StreamWriter(outputPath);
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            foreach (var diagnostic in compiler.Diagnostics)
+            {
+                Console.WriteLine(
+                    "{0}({1}, {2}): {3}",
+                    diagnostic.Position.Source.FileName,
+                    diagnostic.Position.GetLine(),
+                    diagnostic.Position.GetColumn(),
+                    diagnostic.Message
+                );
+            }
+
+            Console.ResetColor();
+            return;
+        }
+
+        TextWriter writer;
+        if (transpile)
+        {
+            writer = outputPath == null ? Console.Out : new StreamWriter(outputPath);
             C99Backend.Emit(compiler, writer);
             return;
         }
 
-        Console.ForegroundColor = ConsoleColor.DarkRed;
-        foreach (var diagnostic in compiler.Diagnostics)
+        writer = new StringWriter();
+        C99Backend.Emit(compiler, writer);
+        using var process = Process.Start(
+            new ProcessStartInfo
+            {
+                FileName = "cc",
+                Arguments = $"-x c -o {outputPath ?? "a.out"} -",
+                RedirectStandardInput = true,
+                UseShellExecute = false
+            }
+        );
+
+        if (process == null)
         {
-            Console.WriteLine(
-                "{0}({1}, {2}): {3}",
-                diagnostic.Position.Source.FileName,
-                diagnostic.Position.GetLine(),
-                diagnostic.Position.GetColumn(),
-                diagnostic.Message
-            );
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            Console.Error.WriteLine("Failed to start cc");
+            Console.ResetColor();
+            return;
         }
 
-        Console.ResetColor();
+        process.StandardInput.Write(writer.ToString());
+        process.StandardInput.Flush();
     }
     catch (IOException e)
     {
         Console.ForegroundColor = ConsoleColor.DarkRed;
         Console.Error.WriteLine(e.Message);
-        return;
     }
 }
