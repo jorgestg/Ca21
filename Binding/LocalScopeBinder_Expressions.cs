@@ -79,9 +79,9 @@ internal sealed partial class LocalScopeBinder
 
     private BoundLiteralExpression BindLiteral(LiteralContext context, DiagnosticList diagnostics)
     {
-        (object value, TypeSymbol type) = context switch
+        (object? value, TypeSymbol type) = context switch
         {
-            IntegerLiteralContext c => BindIntegerLiteral(c),
+            IntegerLiteralContext c => BindIntegerLiteral(c, diagnostics),
             TrueLiteralContext => (true, TypeSymbol.Bool),
             FalseLiteralContext => (false, TypeSymbol.Bool),
             StringLiteralContext c => (c.Value.Text.Trim('"'), TypeSymbol.String),
@@ -91,17 +91,31 @@ internal sealed partial class LocalScopeBinder
         return new BoundLiteralExpression(context, value, type);
     }
 
-    private (object, TypeSymbol) BindIntegerLiteral(IntegerLiteralContext context)
+    private (object?, TypeSymbol) BindIntegerLiteral(IntegerLiteralContext context, DiagnosticList diagnostics)
     {
         var environmentType = PeekEnvironmentType() ?? TypeSymbol.Int32;
+        var literal = context.Value.Text.Replace("_", "");
         switch (environmentType.NativeType)
         {
             case NativeType.Int64:
-                return (long.Parse(context.Value.Text), TypeSymbol.Int64);
+                if (long.TryParse(literal, out var longValue))
+                    return (longValue, TypeSymbol.Int64);
+
+                break;
+
+            case NativeType.Int32:
+                if (int.TryParse(literal, out var intValue))
+                    return (intValue, TypeSymbol.Int32);
+
+                break;
 
             default:
-                return (int.Parse(context.Value.Text), TypeSymbol.Int32);
+                environmentType = TypeSymbol.Int32;
+                goto case NativeType.Int32;
         }
+
+        diagnostics.Add(context.Value, DiagnosticMessages.ValueDoesNotFitInType(environmentType));
+        return (null, environmentType);
     }
 
     private BoundNameExpression BindNameExpression(NameExpressionContext context, DiagnosticList diagnostics)

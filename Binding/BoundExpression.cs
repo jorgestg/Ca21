@@ -8,7 +8,7 @@ internal abstract class BoundExpression(ParserRuleContext context) : BoundNode
 {
     public ParserRuleContext Context { get; } = context;
     public abstract TypeSymbol Type { get; }
-    public virtual BoundConstant ConstantValue => default;
+    public virtual object? ConstantValue => default;
 }
 
 internal sealed class BoundBlockExpression(
@@ -31,13 +31,13 @@ internal sealed class BoundCastExpression(ParserRuleContext context, BoundExpres
     public override TypeSymbol Type { get; } = type;
 }
 
-internal sealed class BoundLiteralExpression(ParserRuleContext context, object value, TypeSymbol type)
+internal sealed class BoundLiteralExpression(ParserRuleContext context, object? value, TypeSymbol type)
     : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.LiteralExpression;
     public override TypeSymbol Type { get; } = type;
-    public override BoundConstant ConstantValue => new(Value);
-    public object Value { get; } = value;
+    public override object? ConstantValue => Value;
+    public object? Value { get; } = value;
 }
 
 internal sealed class BoundCallExpression(
@@ -99,7 +99,7 @@ internal sealed class BoundUnaryExpression : BoundExpression
 
     public override BoundNodeKind Kind => BoundNodeKind.UnaryExpression;
     public override TypeSymbol Type => Operator.ResultType;
-    public override BoundConstant ConstantValue { get; }
+    public override object? ConstantValue { get; }
     public BoundOperator Operator { get; }
     public BoundExpression Operand { get; }
 }
@@ -129,7 +129,7 @@ internal sealed class BoundBinaryExpression : BoundExpression
 
     public override BoundNodeKind Kind => BoundNodeKind.BinaryExpression;
     public override TypeSymbol Type => Operator.ResultType;
-    public override BoundConstant ConstantValue { get; }
+    public override object? ConstantValue { get; }
     public BoundExpression Left { get; }
     public BoundOperator Operator { get; }
     public BoundExpression Right { get; }

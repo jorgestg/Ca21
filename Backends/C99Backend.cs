@@ -449,6 +449,8 @@ internal sealed class C99Backend
 
     private void EmitLiteralExpression(BoundLiteralExpression expression)
     {
+        Debug.Assert(expression.Value != null);
+
         if (expression.Value is not string str)
         {
             _output.Write(expression.Value.ToString());

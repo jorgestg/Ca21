@@ -49,7 +49,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
     {
         var condition = BindExpression(context.Condition, diagnostics, TypeSymbol.Bool);
         var body = BindBlock(context.Body, diagnostics);
-        if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
+        if (condition.ConstantValue is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
 
         var elseClause = context.ElseClause == null ? null : BindBlock(context.ElseClause, diagnostics);
@@ -60,7 +60,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
     {
         var condition = BindExpression(context.Condition, diagnostics, TypeSymbol.Bool);
         var body = BindBlock(context.Body, diagnostics);
-        if (condition.ConstantValue.HasValue && condition.ConstantValue.Value is false)
+        if (condition.ConstantValue is false)
             diagnostics.Add(context.Body, DiagnosticMessages.CodeIsUnreachable);
 
         var continueIdentifier = new LabelSymbol(context, "loop");

@@ -46,4 +46,6 @@ internal static class DiagnosticMessages
         $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingType.Name}`";
 
     public const string CodeIsUnreachable = "Code is unreachable";
+
+    public static string ValueDoesNotFitInType(TypeSymbol type) => $"Value does not fit in type `{type.Name}`";
 }

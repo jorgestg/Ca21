@@ -4,46 +4,45 @@ namespace Ca21.Binding;
 
 internal static class ConstantFolding
 {
-    public static BoundConstant Fold(BoundBinaryExpression binaryExpression)
+    public static object? Fold(BoundBinaryExpression binaryExpression)
     {
         if (binaryExpression.Type == Symbols.TypeSymbol.Missing)
-            return default;
+            return null;
 
         var leftConstant = binaryExpression.Left.ConstantValue;
         var rightConstant = binaryExpression.Right.ConstantValue;
-        if (!leftConstant.HasValue || !rightConstant.HasValue)
-            return default;
+        if (leftConstant == null || rightConstant == null)
+            return null;
 
-        var l = leftConstant.Value;
-        var r = rightConstant.Value;
+        var l = Convert.ToInt64(leftConstant);
+        var r = Convert.ToInt64(rightConstant);
         return binaryExpression.Operator.Kind switch
         {
-            BoundOperatorKind.Addition => new BoundConstant((int)l + (int)r),
-            BoundOperatorKind.Subtraction => new BoundConstant((int)l - (int)r),
-            BoundOperatorKind.Multiplication => new BoundConstant((int)l * (int)r),
-            BoundOperatorKind.Division => new BoundConstant((int)l / (int)r),
-            BoundOperatorKind.Remainder => new BoundConstant((int)l % (int)r),
-            BoundOperatorKind.Less => new BoundConstant((int)l < (int)r),
-            BoundOperatorKind.LessOrEqual => new BoundConstant((int)l <= (int)r),
-            BoundOperatorKind.Greater => new BoundConstant((int)l > (int)r),
-            BoundOperatorKind.GreaterOrEqual => new BoundConstant((int)l >= (int)r),
+            BoundOperatorKind.Addition => l + r,
+            BoundOperatorKind.Subtraction => l - r,
+            BoundOperatorKind.Multiplication => l * r,
+            BoundOperatorKind.Division => l / r,
+            BoundOperatorKind.Remainder => l % r,
+            BoundOperatorKind.Less => l < r,
+            BoundOperatorKind.LessOrEqual => l <= r,
+            BoundOperatorKind.Greater => l > r,
+            BoundOperatorKind.GreaterOrEqual => l >= r,
             _ => throw new UnreachableException(),
         };
     }
 
-    public static BoundConstant Fold(BoundUnaryExpression unaryExpression)
+    public static object? Fold(BoundUnaryExpression unaryExpression)
     {
         if (unaryExpression.Type == Symbols.TypeSymbol.Missing)
-            return default;
+            return null;
 
-        if (!unaryExpression.Operand.ConstantValue.HasValue)
-            return default;
+        if (unaryExpression.Operand.ConstantValue == null)
+            return null;
 
-        var value = unaryExpression.Operand.ConstantValue.Value;
         return unaryExpression.Operator.Kind switch
         {
-            BoundOperatorKind.LogicalNot => new BoundConstant(!(bool)value),
-            BoundOperatorKind.Negation => new BoundConstant(-(int)value),
+            BoundOperatorKind.LogicalNot => !(bool)unaryExpression.Operand.ConstantValue,
+            BoundOperatorKind.Negation => -Convert.ToInt64(unaryExpression.Operand.ConstantValue),
             _ => throw new UnreachableException(),
         };
     }

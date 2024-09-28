@@ -94,7 +94,7 @@ internal static class Lowerer
     private static BoundStatement LowerIfStatement(BoundIfStatement statement)
     {
         var loweredCondition = LowerExpression(statement.Condition);
-        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is false)
+        if (loweredCondition.ConstantValue is false)
         {
             if (statement.ElseClause == null)
                 return new BoundNopStatement(statement.Context);
@@ -103,7 +103,7 @@ internal static class Lowerer
         }
 
         var statements = default(ArrayBuilder<BoundStatement>);
-        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is true)
+        if (loweredCondition.ConstantValue is true)
         {
             statements = new ArrayBuilder<BoundStatement>(statement.Body.Statements.Length);
             LowerStatementsToBuilder(statement.Body.Statements, ref statements);
@@ -151,7 +151,7 @@ internal static class Lowerer
     private static BoundStatement LowerWhileStatement(BoundWhileStatement statement)
     {
         var loweredCondition = LowerExpression(statement.Condition);
-        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is false)
+        if (loweredCondition.ConstantValue is false)
             return new BoundNopStatement(statement.Context);
 
         // continue: gotoIfFalse <condition> break
@@ -162,7 +162,7 @@ internal static class Lowerer
         statements.Add(new BoundLabelStatement(statement.Context, statement.ContinueLabel));
 
         BoundStatement goToBreak;
-        if (loweredCondition.ConstantValue.HasValue && loweredCondition.ConstantValue.Value is true)
+        if (loweredCondition.ConstantValue is true)
         {
             goToBreak = new BoundGotoStatement(statement.Condition.Context, statement.BreakLabel);
         }
@@ -216,8 +216,8 @@ internal static class Lowerer
 
     private static BoundExpression LowerExpression(BoundExpression expression)
     {
-        return expression.Kind != BoundNodeKind.LiteralExpression && expression.ConstantValue.HasValue
-            ? new BoundLiteralExpression(expression.Context, expression.ConstantValue.Value, expression.Type)
+        return expression.Kind != BoundNodeKind.LiteralExpression && expression.ConstantValue != null
+            ? new BoundLiteralExpression(expression.Context, expression.ConstantValue, expression.Type)
             : expression;
     }
 
