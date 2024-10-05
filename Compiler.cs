@@ -42,6 +42,9 @@ internal sealed class Compiler
         foreach (var structureSymbol in ModuleSymbol.GetMembers<StructureSymbol>())
             _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
 
+        foreach (var enumerationSymbol in ModuleSymbol.GetMembers<EnumerationSymbol>())
+            _diagnosticsBuilder.AddRange(enumerationSymbol.Diagnostics);
+
         foreach (var functionSymbol in ModuleSymbol.GetMembers<SourceFunctionSymbol>())
             CompileFunction(functionSymbol);
     }

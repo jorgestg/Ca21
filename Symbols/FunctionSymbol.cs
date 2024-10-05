@@ -12,16 +12,16 @@ internal abstract class FunctionSymbol : Symbol
 {
     public static new readonly FunctionSymbol Missing = new MissingFunctionSymbol();
 
-    public override SymbolKind Kind => SymbolKind.Function;
+    public override SymbolKind SymbolKind => SymbolKind.Function;
     public abstract ImmutableArray<SourceParameterSymbol> Parameters { get; }
     public abstract TypeSymbol ReturnType { get; }
 
     private sealed class MissingFunctionSymbol : FunctionSymbol
     {
-        public override ParserRuleContext Context => ParserRuleContext.EMPTY;
+        public override ParserRuleContext Context => throw new InvalidOperationException();
         public override ImmutableArray<SourceParameterSymbol> Parameters => throw new InvalidOperationException();
-        public override TypeSymbol ReturnType => TypeSymbol.Missing;
-        public override string Name => "???";
+        public override TypeSymbol ReturnType => throw new InvalidOperationException();
+        public override string Name => throw new InvalidOperationException();
     }
 }
 
@@ -106,7 +106,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
         var returnTypeContext = Context.Signature.ReturnType;
         if (returnTypeContext == null)
         {
-            _returnType = TypeSymbol.Unit;
+            _returnType = TypeSymbol.Void;
         }
         else
         {
@@ -131,7 +131,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
             var type = Binder.BindType(parameterContext.Type, diagnostics);
             var parameterSymbol = new SourceParameterSymbol(parameterContext, this, type);
             if (!mapBuilder.TryAdd(parameterSymbol.Name, parameterSymbol))
-                diagnostics.Add(parameterContext.Name, DiagnosticMessages.NameIsAlreadyDefined(parameterSymbol.Name));
+                diagnostics.Add(parameterContext.Name, DiagnosticMessages.NameIsAlreadyDefined(parameterSymbol));
 
             parametersBuilder.Add(parameterSymbol);
         }

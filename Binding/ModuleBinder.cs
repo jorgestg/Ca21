@@ -34,7 +34,7 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
             return TypeSymbol.Missing;
         }
 
-        if (member.Kind != SymbolKind.Type)
+        if (member.SymbolKind != SymbolKind.Type)
         {
             diagnostics.Add(nameReference, DiagnosticMessages.NameIsNotAType(nameReference.Name.Text));
             return TypeSymbol.Missing;

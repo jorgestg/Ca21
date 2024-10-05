@@ -7,9 +7,8 @@ using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
-internal interface IModuleMemberSymbol
+internal interface IModuleMemberSymbol : ISymbol
 {
-    SymbolKind Kind { get; }
     ModuleSymbol ContainingModule { get; }
 }
 
@@ -22,7 +21,7 @@ internal sealed class ModuleSymbol : Symbol
         Binder = new ModuleBinder(this);
     }
 
-    public override SymbolKind Kind => SymbolKind.Module;
+    public override SymbolKind SymbolKind => SymbolKind.Module;
     public override CompilationUnitContext Context => throw new InvalidOperationException();
     public override string Name { get; }
 
@@ -101,7 +100,7 @@ internal sealed class ModuleSymbol : Symbol
                         {
                             diagnosticsBuilder.Add(
                                 functionContext.Signature.Name,
-                                DiagnosticMessages.NameIsAlreadyDefined(functionSymbol.Name)
+                                DiagnosticMessages.NameIsAlreadyDefined(functionSymbol)
                             );
                         }
 
@@ -116,7 +115,22 @@ internal sealed class ModuleSymbol : Symbol
                         {
                             diagnosticsBuilder.Add(
                                 structureContext.Name,
-                                DiagnosticMessages.NameIsAlreadyDefined(structureSymbol.Name)
+                                DiagnosticMessages.NameIsAlreadyDefined(structureSymbol)
+                            );
+                        }
+
+                        break;
+                    }
+                    case TopLevelEnumerationDefinitionContext { Enumeration: var enumerationContext }:
+                    {
+                        var enumerationSymbol = new EnumerationSymbol(enumerationContext, this);
+                        membersBuilder.Add(enumerationSymbol);
+
+                        if (!memberMapBuilder.TryAdd(enumerationSymbol.Name, enumerationSymbol))
+                        {
+                            diagnosticsBuilder.Add(
+                                enumerationContext.Name,
+                                DiagnosticMessages.NameIsAlreadyDefined(enumerationSymbol)
                             );
                         }
 

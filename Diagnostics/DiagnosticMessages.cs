@@ -25,7 +25,7 @@ internal static class DiagnosticMessages
 
     public const string AllCodePathsMustReturn = "Not all code paths return a value";
 
-    public static string NameIsAlreadyDefined(string name) => $"`{name}` is already defined";
+    public static string NameIsAlreadyDefined(Symbol symbol) => $"`{symbol.Name}` is already defined";
 
     public const string ExpressionIsNotCallable = "Expression is not callable";
 
@@ -42,7 +42,7 @@ internal static class DiagnosticMessages
     public static string TypeDoesNotContainMember(TypeSymbol type, string fieldName) =>
         $"`{type.Name}` does not contain member `{fieldName}`";
 
-    public static string CycleDetected(SourceFieldSymbol field) =>
+    public static string CycleDetected(FieldSymbol field) =>
         $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingType.Name}`";
 
     public const string CodeIsUnreachable = "Code is unreachable";

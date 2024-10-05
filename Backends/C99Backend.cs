@@ -75,7 +75,7 @@ internal sealed class C99Backend
         {
             foreach (var field in structure.Fields)
             {
-                if (field.Type.NativeType != NativeType.None)
+                if (field.Type.TypeKind != TypeKind.None)
                     continue;
 
                 var fieldTypeAsStructure = (StructureSymbol)field.Type;
@@ -108,7 +108,7 @@ internal sealed class C99Backend
 
     private void EmitMangledName(Symbol symbol)
     {
-        switch (symbol.Kind)
+        switch (symbol.SymbolKind)
         {
             case SymbolKind.Field:
             {
@@ -206,25 +206,26 @@ internal sealed class C99Backend
 
     private void EmitTypeReference(TypeSymbol typeSymbol)
     {
-        switch (typeSymbol.NativeType)
+        switch (typeSymbol.TypeKind)
         {
-            case NativeType.None:
+            case TypeKind.Structure:
+            case TypeKind.Enumeration:
                 _output.Write("struct ");
                 EmitMangledName(typeSymbol);
                 break;
-            case NativeType.Unit:
+            case TypeKind.Void:
                 _output.Write("void");
                 break;
-            case NativeType.Int32:
+            case TypeKind.Int32:
                 _output.Write("int32_t");
                 break;
-            case NativeType.Int64:
+            case TypeKind.Int64:
                 _output.Write("int64_t");
                 break;
-            case NativeType.Bool:
+            case TypeKind.Bool:
                 _output.Write("bool");
                 break;
-            case NativeType.String:
+            case TypeKind.String:
                 _output.Write("char*");
                 break;
             default:
@@ -482,7 +483,7 @@ internal sealed class C99Backend
     {
         EmitExpression(expression.Left);
         _output.Write('.');
-        _output.Write(expression.ReferencedField.Name);
+        _output.Write(expression.ReferencedMember.Name);
     }
 
     private void EmitStructureLiteralExpression(BoundStructureLiteralExpression expression)

@@ -98,15 +98,15 @@ internal sealed partial class LocalScopeBinder
     {
         var environmentType = PeekEnvironmentType() ?? TypeSymbol.Int32;
         var literal = context.Value.Text.Replace("_", "");
-        switch (environmentType.NativeType)
+        switch (environmentType.TypeKind)
         {
-            case NativeType.Int64:
+            case TypeKind.Int64:
                 if (long.TryParse(literal, out var longValue))
                     return (longValue, TypeSymbol.Int64);
 
                 break;
 
-            case NativeType.Int32:
+            case TypeKind.Int32:
                 if (int.TryParse(literal, out var intValue))
                     return (intValue, TypeSymbol.Int32);
 
@@ -114,7 +114,7 @@ internal sealed partial class LocalScopeBinder
 
             default:
                 environmentType = TypeSymbol.Int32;
-                goto case NativeType.Int32;
+                goto case TypeKind.Int32;
         }
 
         diagnostics.Add(context.Value, DiagnosticMessages.ValueDoesNotFitInType(environmentType));
@@ -147,7 +147,7 @@ internal sealed partial class LocalScopeBinder
         }
 
         var nameExpression = (BoundNameExpression)callee;
-        if (nameExpression.ReferencedSymbol.Kind != SymbolKind.Function)
+        if (nameExpression.ReferencedSymbol.SymbolKind != SymbolKind.Function)
         {
             if (nameExpression.ReferencedSymbol != Symbol.Missing)
             {
@@ -208,19 +208,18 @@ internal sealed partial class LocalScopeBinder
     private BoundAccessExpression BindAccessExpression(AccessExpressionContext context, DiagnosticList diagnostics)
     {
         var left = BindExpression(context.Left, diagnostics);
-        if (left.Type == TypeSymbol.Missing)
-            return new BoundAccessExpression(context, left, FieldSymbol.Missing);
+        var type = left is BoundNameExpression { ReferencedSymbol.SymbolKind: SymbolKind.Type } nameExpression
+            ? (TypeSymbol)nameExpression.ReferencedSymbol
+            : left.Type;
 
-        if (
-            left.Type is not StructureSymbol structureSymbol
-            || !structureSymbol.FieldMap.TryGetValue(context.Right.Text, out var referencedField)
-        )
-        {
-            diagnostics.Add(context.Right, DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text));
-            referencedField = FieldSymbol.Missing;
-        }
+        if (type == TypeSymbol.Missing)
+            return new BoundAccessExpression(context, left, TypeMemberSymbol.Missing);
 
-        return new BoundAccessExpression(context, left, referencedField);
+        if (type.TryGetMember(context.Right.Text, out var member))
+            return new BoundAccessExpression(context, left, member);
+
+        diagnostics.Add(context.Right, DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text));
+        return new BoundAccessExpression(context, left, TypeMemberSymbol.Missing);
     }
 
     private BoundStructureLiteralExpression BindStructureLiteralExpression(
@@ -229,14 +228,10 @@ internal sealed partial class LocalScopeBinder
     )
     {
         var referencedType = BindType(context.Structure, diagnostics);
-        var structure = referencedType as StructureSymbol;
-        if (referencedType != TypeSymbol.Missing && structure == null)
-            diagnostics.Add(context.Structure, DiagnosticMessages.NameIsNotAType(context.Structure.GetText()));
-
         var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
         foreach (var fieldInitializerContext in context._Fields)
         {
-            FieldSymbol field;
+            TypeMemberSymbol field;
             IToken name;
             BoundExpression value;
 
@@ -244,7 +239,7 @@ internal sealed partial class LocalScopeBinder
             {
                 case AssignmentFieldInitializerContext c:
                     name = c.Name;
-                    field = structure?.FieldMap.GetValueOrDefault(name.Text) ?? FieldSymbol.Missing;
+                    referencedType.TryGetMember(name.Text, out field);
                     value = BindExpressionOrBlock(c.Value, diagnostics, field.Type);
                     break;
 
@@ -255,7 +250,7 @@ internal sealed partial class LocalScopeBinder
                     if (referencedSymbol == Symbol.Missing)
                         diagnostics.Add(c.Name, DiagnosticMessages.NameNotFound(name.Text));
 
-                    field = structure?.FieldMap.GetValueOrDefault(name.Text) ?? FieldSymbol.Missing;
+                    referencedType.TryGetMember(name.Text, out field);
                     value = BindConversion(new BoundNameExpression(c, referencedSymbol), field.Type, diagnostics);
                     break;
 
@@ -263,10 +258,10 @@ internal sealed partial class LocalScopeBinder
                     throw new UnreachableException();
             }
 
-            if (field == FieldSymbol.Missing && structure != null)
-                diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(structure, name.Text));
+            if (field == TypeMemberSymbol.Missing && referencedType != TypeSymbol.Missing)
+                diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(referencedType, name.Text));
 
-            fieldInitializers.Add(new BoundFieldInitializer(context, field, value));
+            fieldInitializers.Add(new BoundFieldInitializer(context, (FieldSymbol)field, value));
         }
 
         return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());
@@ -344,14 +339,14 @@ internal sealed partial class LocalScopeBinder
             return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
         }
 
-        if (name.ReferencedSymbol.Kind is not SymbolKind.Local and not SymbolKind.Field)
+        if (name.ReferencedSymbol.SymbolKind is not SymbolKind.Local and not SymbolKind.Field)
         {
             diagnostics.Add(assignee.Context, DiagnosticMessages.SymbolIsNotAssignable(name.ReferencedSymbol.Name));
             return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
         }
 
         var value = BindExpression(context.Value, diagnostics, name.ReferencedSymbol.Type);
-        if (name.ReferencedSymbol.Kind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
+        if (name.ReferencedSymbol.SymbolKind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
             diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(name.ReferencedSymbol.Name));
 
         return new BoundAssignmentExpression(context, name.ReferencedSymbol, value);

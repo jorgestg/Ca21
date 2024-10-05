@@ -5,7 +5,7 @@ namespace Ca21.Symbols;
 
 internal abstract class LocalSymbol : Symbol
 {
-    public override SymbolKind Kind => SymbolKind.Local;
+    public override SymbolKind SymbolKind => SymbolKind.Local;
     public abstract bool IsMutable { get; }
 }
 

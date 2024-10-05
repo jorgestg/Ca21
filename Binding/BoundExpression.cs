@@ -18,7 +18,7 @@ internal sealed class BoundBlockExpression(
 ) : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.BlockExpression;
-    public override TypeSymbol Type => TailExpression?.Type ?? TypeSymbol.Unit;
+    public override TypeSymbol Type => TailExpression?.Type ?? TypeSymbol.Void;
     public ImmutableArray<BoundStatement> Statements { get; } = statements;
     public BoundExpression? TailExpression { get; } = tailExpression;
 }
@@ -55,13 +55,13 @@ internal sealed class BoundCallExpression(
 internal sealed class BoundAccessExpression(
     ParserRuleContext context,
     BoundExpression left,
-    FieldSymbol referencedField
+    TypeMemberSymbol referencedMember
 ) : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.AccessExpression;
-    public override TypeSymbol Type => ReferencedField.Type;
+    public override TypeSymbol Type => ReferencedMember.Type;
     public BoundExpression Left { get; } = left;
-    public FieldSymbol ReferencedField { get; } = referencedField;
+    public TypeMemberSymbol ReferencedMember { get; } = referencedMember;
 }
 
 internal sealed class BoundStructureLiteralExpression(
@@ -139,7 +139,7 @@ internal sealed class BoundAssignmentExpression(ParserRuleContext context, Symbo
     : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.AssignmentExpression;
-    public override TypeSymbol Type => TypeSymbol.Unit;
+    public override TypeSymbol Type => TypeSymbol.Void;
     public Symbol Assignee { get; } = assignee;
     public BoundExpression Value { get; } = value;
 }

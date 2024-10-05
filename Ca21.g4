@@ -6,8 +6,29 @@ compilationUnit
     ;
 
 topLevelDefinition
-    : Function=functionDefinition #TopLevelFunctionDefinition
+    : Enumeration=enumerationDefinition #TopLevelEnumerationDefinition
+    | Function=functionDefinition #TopLevelFunctionDefinition
     | Structure=structureDefinition #TopLevelStructureDefinition
+    ;
+
+enumerationDefinition
+    : 'enum' Name=Identifier '{' (Cases+=enumerationCaseDefinition (',' Cases+=enumerationCaseDefinition)*) '}'
+    ;
+
+enumerationCaseDefinition
+    : Name=Identifier
+    ;
+
+functionSignature
+    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference?
+    ;
+
+parameterList
+    : Parameters+=parameterDefinition (',' Parameters+=parameterDefinition)*
+    ;
+
+parameterDefinition
+    : MutModifier='mut'? Name=Identifier Type=typeReference
     ;
 
 structureDefinition
@@ -24,18 +45,6 @@ functionDefinition
 
 externModifier
     : 'extern' ExternName=String?
-    ;
-
-functionSignature
-    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference?
-    ;
-
-parameterList
-    : Parameters+=parameterDefinition (',' Parameters+=parameterDefinition)*
-    ;
-
-parameterDefinition
-    : MutModifier='mut'? Name=Identifier Type=typeReference
     ;
 
 typeReference
@@ -106,6 +115,7 @@ literal
 
 // Lexer
 // Keywords
+EnumKeyword: 'enum';
 ExternKeyword: 'extern';
 ExportKeyword: 'export';
 FuncKeyword: 'func';
