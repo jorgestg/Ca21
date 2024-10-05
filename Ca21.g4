@@ -77,7 +77,7 @@ expression
     | Name=Identifier #NameExpression
     | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
     | Left=expression '.' Right=Identifier #AccessExpression
-    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)) '}' #StructureLiteralExpression
+    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)*) '}' #StructureLiteralExpression
     | Operator=('!'|'-') Operand=expression #UnaryExpression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
