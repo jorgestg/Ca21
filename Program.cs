@@ -21,28 +21,34 @@ var outOption = new Option<string?>("--out", "The output filename");
 outOption.AddAlias("-o");
 rootCommand.AddOption(outOption);
 
-var transpileOption = new Option<bool>("--transpile", "Just output C code");
-rootCommand.AddOption(transpileOption);
+var transpileOnlyOption = new Option<bool>("--transpile-only", "Just output C code");
+rootCommand.AddOption(transpileOnlyOption);
 
-rootCommand.SetHandler(Compile, filesArgument, outOption, transpileOption);
+rootCommand.SetHandler(Compile, filesArgument, outOption, transpileOnlyOption);
 rootCommand.Invoke(args);
 
-static void Compile(IList<string> files, string? outputPath, bool transpile)
+static void Compile(IList<string> files, string? outputPath, bool transpileOnly)
 {
     try
     {
         var rootsBuilder = new ArrayBuilder<CompilationUnitContext>(files.Count);
         foreach (var file in files)
         {
-            var source = File.ReadAllText(file);
-            var sourceText = new SourceText(file, source.AsMemory());
+            var source = file == "-" ? Console.In.ReadToEnd() : File.ReadAllText(file);
+            var sourceText = new SourceText(file == "-" ? "stdin" : file, source.AsMemory());
             var charStream = CharStreams.fromString(source);
             SourceTextMap.Register(charStream, sourceText);
 
             var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
             var compilationUnit = parser.compilationUnit();
+            if (parser.NumberOfSyntaxErrors > 0)
+                continue;
+
             rootsBuilder.Add(compilationUnit);
         }
+
+        if (files.Count == 0)
+            return;
 
         var module = new ModuleSymbol(rootsBuilder.MoveToImmutable(), "main");
         var compiler = Compiler.Compile(module);
@@ -65,7 +71,7 @@ static void Compile(IList<string> files, string? outputPath, bool transpile)
         }
 
         TextWriter writer;
-        if (transpile)
+        if (transpileOnly)
         {
             writer = outputPath == null ? Console.Out : new StreamWriter(outputPath);
             C99Backend.Emit(compiler, writer);
@@ -78,7 +84,7 @@ static void Compile(IList<string> files, string? outputPath, bool transpile)
             new ProcessStartInfo
             {
                 FileName = "cc",
-                Arguments = $"-x c -o {outputPath ?? "a.out"} -",
+                Arguments = $"-x c -o {outputPath ?? Path.GetFileNameWithoutExtension(files.First())} -",
                 RedirectStandardInput = true,
                 UseShellExecute = false
             }
