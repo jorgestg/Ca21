@@ -96,10 +96,9 @@ internal static class Lowerer
         var loweredCondition = LowerExpression(statement.Condition);
         if (loweredCondition.ConstantValue is false)
         {
-            if (statement.ElseClause == null)
-                return new BoundNopStatement(statement.Context);
-
-            return LowerStatement(statement.ElseClause);
+            return statement.ElseClause == null
+                ? new BoundNopStatement(statement.Context)
+                : LowerStatement(statement.ElseClause);
         }
 
         var statements = default(ArrayBuilder<BoundStatement>);
@@ -110,40 +109,42 @@ internal static class Lowerer
             return new BoundBlock(statement.Context, statements.MoveToImmutable());
         }
 
-        // gotoIfFalse <condition> {else|end}
-        // <then>
-        // goto end
-        // [
-        //  else:
-        //  <else>
-        // ]
-        // end:
-        var statementCount = statement.Body.Statements.Length + 3;
+        //            if only            |            if-else
+        // ------------------------------|------------------------------
+        // jumpIfFalse <condition> @else | jumpIfFalse <condition> @else
+        // <body>                        | <body>
+        // @else:                        | goto @end
+        // ...                           | @else:
+        //                               | <elseBody>
+        //                               | @end:
+        var statementCount = statement.Body.Statements.Length + 2;
         if (statement.ElseClause != null)
-            statementCount += statement.ElseClause.Statements.Length + 1;
+            statementCount += statement.ElseClause.Statements.Length + 2;
 
         statements = new ArrayBuilder<BoundStatement>(statementCount);
 
-        var elseClauseLabel = statement.ElseClause == null ? null : new LabelSymbol(statement.Context, "else");
-        var endLabel = new LabelSymbol(statement.Context, "end");
+        var elseLabel = new LabelSymbol(statement.Context, "else");
         statements.Add(
             new BoundConditionalGotoStatement(
                 statement.Condition.Context,
                 statement.Condition,
-                elseClauseLabel ?? endLabel,
+                elseLabel,
                 branchIfFalse: true
             )
         );
 
         LowerStatementsToBuilder(statement.Body.Statements, ref statements);
-        statements.Add(new BoundGotoStatement(statement.Context, endLabel));
 
-        if (statement.ElseClause != null)
+        if (statement.ElseClause == null)
         {
-            statements.Add(new BoundLabelStatement(statement.Context, elseClauseLabel!));
-            LowerStatementsToBuilder(statement.ElseClause.Statements, ref statements);
+            statements.Add(new BoundLabelStatement(statement.Context, elseLabel));
+            return new BoundBlock(statement.Context, statements.MoveToImmutable());
         }
 
+        var endLabel = new LabelSymbol(statement.Context, "end");
+        statements.Add(new BoundGotoStatement(statement.Context, endLabel));
+        statements.Add(new BoundLabelStatement(statement.Context, elseLabel));
+        LowerStatementsToBuilder(statement.ElseClause.Statements, ref statements);
         statements.Add(new BoundLabelStatement(statement.Context, endLabel));
         return new BoundBlock(statement.Context, statements.MoveToImmutable());
     }
