@@ -64,6 +64,9 @@ internal sealed partial class LocalScopeBinder
             FactorExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             TermExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             ComparisonExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
+            EqualityExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
+            LogicalAndExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
+            LogicalOrExpressionContext c => BindBinaryExpression(c, c.Left, c.Operator, c.Right, diagnostics),
             AssignmentExpressionContext c => BindAssignmentExpression(c, diagnostics),
             _ => throw new UnreachableException()
         };
@@ -311,6 +314,10 @@ internal sealed partial class LocalScopeBinder
             GreaterThanOrEqual => BoundOperatorKind.GreaterOrEqual,
             LessThan => BoundOperatorKind.Less,
             LessThanOrEqual => BoundOperatorKind.LessOrEqual,
+            DoubleEqual => BoundOperatorKind.Equality,
+            BangEqual => BoundOperatorKind.Inequality,
+            DoubleAmpersand => BoundOperatorKind.LogicalAnd,
+            DoublePipe => BoundOperatorKind.LogicalOr,
             _ => throw new UnreachableException()
         };
 

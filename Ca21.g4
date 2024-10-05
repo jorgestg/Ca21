@@ -82,6 +82,9 @@ expression
     | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
     | Left=expression Operator=('+' | '-') Right=expression #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
+    | Left=expression Operator=('==' | '!=') Right=expression #EqualityExpression
+    | Left=expression Operator='&&' Right=expression #LogicalAndExpression
+    | Left=expression Operator='||' Right=expression #LogicalOrExpression
     | Assignee=expression '=' Value=expression #AssignmentExpression
     ;
 
@@ -146,6 +149,10 @@ LessThanOrEqual: '<=';
 GreaterThan: '>';
 GreaterThanOrEqual: '>=';
 Equal: '=';
+DoubleEqual: '==';
+BangEqual: '!=';
+DoubleAmpersand: '&&';
+DoublePipe: '||';
 
 // Skip
 Whitespace: [ \r\n\t] -> skip;

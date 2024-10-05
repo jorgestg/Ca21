@@ -518,10 +518,9 @@ internal sealed class C99Backend
                 BoundOperatorKind.Multiplication => "*",
                 BoundOperatorKind.Division => "/",
                 BoundOperatorKind.Remainder => "%",
-                // BoundBinaryOperatorKind.Equal => "==",
-                // BoundBinaryOperatorKind.NotEqual => "!=",
-                BoundOperatorKind.Less
-                    => "<",
+                BoundOperatorKind.Equality => "==",
+                BoundOperatorKind.Inequality => "!=",
+                BoundOperatorKind.Less => "<",
                 BoundOperatorKind.LessOrEqual => "<=",
                 BoundOperatorKind.Greater => ">",
                 BoundOperatorKind.GreaterOrEqual => ">=",

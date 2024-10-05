@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Ca21.Symbols;
 
 namespace Ca21.Binding;
 
@@ -6,7 +7,7 @@ internal static class ConstantFolding
 {
     public static object? Fold(BoundBinaryExpression binaryExpression)
     {
-        if (binaryExpression.Type == Symbols.TypeSymbol.Missing)
+        if (binaryExpression.Type == TypeSymbol.Missing)
             return null;
 
         var leftConstant = binaryExpression.Left.ConstantValue;
@@ -14,19 +15,21 @@ internal static class ConstantFolding
         if (leftConstant == null || rightConstant == null)
             return null;
 
-        var l = Convert.ToInt64(leftConstant);
-        var r = Convert.ToInt64(rightConstant);
         return binaryExpression.Operator.Kind switch
         {
-            BoundOperatorKind.Addition => l + r,
-            BoundOperatorKind.Subtraction => l - r,
-            BoundOperatorKind.Multiplication => l * r,
-            BoundOperatorKind.Division => l / r,
-            BoundOperatorKind.Remainder => l % r,
-            BoundOperatorKind.Less => l < r,
-            BoundOperatorKind.LessOrEqual => l <= r,
-            BoundOperatorKind.Greater => l > r,
-            BoundOperatorKind.GreaterOrEqual => l >= r,
+            BoundOperatorKind.Addition => Convert.ToInt64(leftConstant) + Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Subtraction => Convert.ToInt64(leftConstant) - Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Multiplication => Convert.ToInt64(leftConstant) * Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Division => Convert.ToInt64(leftConstant) / Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Remainder => Convert.ToInt64(leftConstant) % Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Less => Convert.ToInt64(leftConstant) < Convert.ToInt64(rightConstant),
+            BoundOperatorKind.LessOrEqual => Convert.ToInt64(leftConstant) <= Convert.ToInt64(rightConstant),
+            BoundOperatorKind.Greater => Convert.ToInt64(leftConstant) > Convert.ToInt64(rightConstant),
+            BoundOperatorKind.GreaterOrEqual => Convert.ToInt64(leftConstant) >= Convert.ToInt64(rightConstant),
+            BoundOperatorKind.LogicalAnd => (bool)leftConstant && (bool)rightConstant,
+            BoundOperatorKind.LogicalOr => (bool)leftConstant || (bool)rightConstant,
+            BoundOperatorKind.Equality => Equals(leftConstant, rightConstant),
+            BoundOperatorKind.Inequality => !Equals(leftConstant, rightConstant),
             _ => throw new UnreachableException(),
         };
     }

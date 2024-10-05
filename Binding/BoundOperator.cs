@@ -14,14 +14,21 @@ internal enum BoundOperatorKind
     Greater,
     GreaterOrEqual,
     Less,
-    LessOrEqual
+    LessOrEqual,
+    Equality,
+    Inequality,
+    LogicalAnd,
+    LogicalOr
 }
 
 internal readonly struct BoundOperator
 {
     private static readonly BoundOperator[] Operators =
     [
+        // Boolean
         new(BoundOperatorKind.LogicalNot, TypeSymbol.Bool, TypeSymbol.Bool),
+        new(BoundOperatorKind.LogicalAnd, TypeSymbol.Bool, TypeSymbol.Bool),
+        new(BoundOperatorKind.LogicalOr, TypeSymbol.Bool, TypeSymbol.Bool),
         // Int32
         new(BoundOperatorKind.Negation, TypeSymbol.Int32, TypeSymbol.Int32),
         new(BoundOperatorKind.Multiplication, TypeSymbol.Int32, TypeSymbol.Int32),
@@ -69,6 +76,12 @@ internal readonly struct BoundOperator
         {
             boundOperator = new BoundOperator(kind, TypeSymbol.Missing, TypeSymbol.Missing);
             return false;
+        }
+
+        if (kind is BoundOperatorKind.Equality or BoundOperatorKind.Inequality)
+        {
+            boundOperator = new BoundOperator(kind, operandType, TypeSymbol.Bool);
+            return true;
         }
 
         return TryBind(kind, operandType, out boundOperator);
