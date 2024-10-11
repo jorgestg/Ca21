@@ -135,11 +135,11 @@ internal sealed class BoundBinaryExpression : BoundExpression
     public BoundExpression Right { get; }
 }
 
-internal sealed class BoundAssignmentExpression(ParserRuleContext context, Symbol assignee, BoundExpression value)
+internal sealed class BoundAssignmentExpression(ParserRuleContext context, Symbol assignee, BoundExpression expression)
     : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.AssignmentExpression;
     public override TypeSymbol Type => TypeSymbol.Void;
     public Symbol Assignee { get; } = assignee;
-    public BoundExpression Value { get; } = value;
+    public BoundExpression Expression { get; } = expression;
 }

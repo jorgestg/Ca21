@@ -39,7 +39,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundLocalDeclaration BindLocalDeclaration(LocalDeclarationContext context, DiagnosticList diagnostics)
     {
-        var initializer = BindExpressionOrBlock(context.Value, diagnostics);
+        var initializer = BindExpressionOrBlock(context.Expression, diagnostics);
         var local = new SourceLocalSymbol(context, initializer.Type);
         Define(local);
         return new BoundLocalDeclaration(context, local, initializer);
@@ -70,7 +70,7 @@ internal sealed partial class LocalScopeBinder(Binder parent) : Binder
 
     private BoundReturnStatement BindReturnStatement(ReturnStatementContext context, DiagnosticList diagnostics)
     {
-        var returnValue = BindExpressionOrBlock(context.Value, diagnostics, GetReturnType());
+        var returnValue = BindExpressionOrBlock(context.Expression, diagnostics, GetReturnType());
         return new BoundReturnStatement(context, returnValue);
     }
 

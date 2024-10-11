@@ -57,6 +57,7 @@ typeKeyword
     | Keyword=Int64Keyword
     | Keyword=StringKeyword
     | Keyword=BoolKeyword
+    | Keyword=USizeKeyword
     ;
 
 block
@@ -67,13 +68,13 @@ statement
     : Declaration=localDeclaration #LocalDeclarationStatement
     | 'if' Condition=expression Body=block ('else' ElseClause=block)? #IfStatement
     | 'while' Condition=expression Body=block #WhileStatement
-    | 'return' Value=expressionOrBlock ';' #ReturnStatement
+    | 'return' Expression=expressionOrBlock ';' #ReturnStatement
     | Block=block #BlockStatement
     | Expression=expression ';' #ExpressionStatement
     ;
 
 localDeclaration
-    : 'let' MutModifier='mut'? Name=Identifier '=' Value=expressionOrBlock ';'
+    : 'let' MutModifier='mut'? Name=Identifier '=' Expression=expressionOrBlock ';'
     ;
 
 expressionOrBlock
@@ -82,19 +83,21 @@ expressionOrBlock
     ;
 
 expression
-    : Literal=literal #LiteralExpression
-    | Name=Identifier #NameExpression
-    | Callee=expression '(' ArgumentList=argumentList? ')' #CallExpression
-    | Left=expression '.' Right=Identifier #AccessExpression
-    | Structure=typeReference '{' (Fields+=fieldInitializer (',' Fields+=fieldInitializer)*) '}' #StructureLiteralExpression
-    | Operator=('!'|'-') Operand=expression #UnaryExpression
-    | Left=expression Operator=('*' | '/' | '%') Right=expression #FactorExpression
-    | Left=expression Operator=('+' | '-') Right=expression #TermExpression
+    : Literal=literal                                                     #LiteralExpression
+    | Name=typeReference                                                  #NameExpression
+    | Callee=expression '(' ArgumentList=argumentList? ')'                #CallExpression
+    | Left=expression '.' Right=Identifier                                #AccessExpression
+    | Structure=typeReference '{'
+        (Fields+=fieldInitializer (',' Fields+=fieldInitializer)*)
+      '}'                                                                 #StructureLiteralExpression
+    | Operator=('!'|'-') Operand=expression                               #UnaryExpression
+    | Left=expression Operator=('*' | '/' | '%') Right=expression         #FactorExpression
+    | Left=expression Operator=('+' | '-') Right=expression               #TermExpression
     | Left=expression Operator=('<' | '<=' | '>' | '>=') Right=expression #ComparisonExpression
-    | Left=expression Operator=('==' | '!=') Right=expression #EqualityExpression
-    | Left=expression Operator='&&' Right=expression #LogicalAndExpression
-    | Left=expression Operator='||' Right=expression #LogicalOrExpression
-    | Assignee=expression '=' Value=expression #AssignmentExpression
+    | Left=expression Operator=('==' | '!=') Right=expression             #EqualityExpression
+    | Left=expression Operator='&&' Right=expression                      #LogicalAndExpression
+    | Left=expression Operator='||' Right=expression                      #LogicalOrExpression
+    | Assignee=expression '=' Expression=expression                       #AssignmentExpression
     ;
 
 fieldInitializer
@@ -132,6 +135,7 @@ TrueKeyword: 'true';
 FalseKeyword: 'false';
 WhileKeyword: 'while';
 ReturnKeyword: 'return';
+USizeKeyword: 'usize';
 
 // Literals
 String: '"' .*? '"';

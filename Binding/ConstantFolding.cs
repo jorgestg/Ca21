@@ -36,7 +36,7 @@ internal static class ConstantFolding
 
     public static object? Fold(BoundUnaryExpression unaryExpression)
     {
-        if (unaryExpression.Type == Symbols.TypeSymbol.Missing)
+        if (unaryExpression.Type == TypeSymbol.Missing)
             return null;
 
         if (unaryExpression.Operand.ConstantValue == null)

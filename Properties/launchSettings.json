@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Project": {
+      "commandName": "Project",
+      "commandLineArgs": "./.fake/main.ca21 --transpile-only"
+    }
+  }
+}

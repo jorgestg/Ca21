@@ -187,7 +187,7 @@ internal static class Lowerer
 
     private static BoundStatement LowerReturnStatement(BoundReturnStatement returnStatement)
     {
-        var loweredValue = returnStatement.Value == null ? null : LowerExpression(returnStatement.Value);
+        var loweredValue = returnStatement.Expression == null ? null : LowerExpression(returnStatement.Expression);
         if (loweredValue?.Kind == BoundNodeKind.BlockExpression)
         {
             return LowerBlockExpression(
@@ -197,7 +197,7 @@ internal static class Lowerer
             );
         }
 
-        return loweredValue == returnStatement.Value
+        return loweredValue == returnStatement.Expression
             ? returnStatement
             : new BoundReturnStatement(returnStatement.Context, loweredValue);
     }

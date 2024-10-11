@@ -37,7 +37,7 @@ internal sealed class C99Backend
         _output.WriteLine("#include <stdbool.h>");
         _output.WriteLine();
 
-        Span<byte> lengthBytes = stackalloc byte[4];
+        Span<byte> lengthBytes = stackalloc byte[nuint.Size];
         Span<char> lengthChars = stackalloc char[2];
         foreach (var constant in Compiler.Constants)
         {
@@ -47,10 +47,10 @@ internal sealed class C99Backend
             _output.Write("static const char ");
             _output.Write(name);
             _output.Write('[');
-            _output.Write(constant.Length + 4);
+            _output.Write(constant.Length + nuint.Size);
             _output.Write("] = \"");
 
-            BitConverter.TryWriteBytes(lengthBytes, constant.Length);
+            BitConverter.TryWriteBytes(lengthBytes, nuint.Size == 8 ? (ulong)constant.Length : (uint)constant.Length);
             foreach (var @byte in lengthBytes)
             {
                 _output.Write("\\x");
@@ -69,13 +69,21 @@ internal sealed class C99Backend
     private void EmitModule(ModuleSymbol moduleSymbol)
     {
         // C doesn't support forward-references, so we have to emit in order
+        var enumerations = moduleSymbol.GetMembers<EnumerationSymbol>();
         var structures = moduleSymbol.GetMembers<StructureSymbol>();
-        var emitted = new HashSet<IModuleMemberSymbol>(structures.Count());
+        var emitted = new HashSet<IModuleMemberSymbol>(structures.Count() + enumerations.Count());
+        foreach (var enumeration in enumerations)
+        {
+            EmitEnumeration(enumeration);
+            emitted.Add(enumeration);
+            _output.WriteLine();
+        }
+
         foreach (var structure in structures)
         {
             foreach (var field in structure.Fields)
             {
-                if (field.Type.TypeKind != TypeKind.None)
+                if (field.Type.TypeKind != TypeKind.Structure)
                     continue;
 
                 var fieldTypeAsStructure = (StructureSymbol)field.Type;
@@ -106,14 +114,13 @@ internal sealed class C99Backend
         }
     }
 
-    private void EmitMangledName(Symbol symbol)
+    private void EmitSymbolName(Symbol symbol)
     {
         switch (symbol.SymbolKind)
         {
             case SymbolKind.Field:
             {
-                var field = (FieldSymbol)symbol;
-                _output.Write(field.Name);
+                _output.Write(symbol.Name);
                 break;
             }
 
@@ -184,10 +191,22 @@ internal sealed class C99Backend
         );
     }
 
+    private void EmitEnumeration(EnumerationSymbol enumeration)
+    {
+        _output.Write("struct ");
+        EmitSymbolName(enumeration);
+        _output.WriteLine();
+        _output.WriteLine('{');
+        _output.Indent++;
+        _output.WriteLine("uintptr_t tag;");
+        _output.Indent--;
+        _output.WriteLine("};");
+    }
+
     private void EmitStructure(StructureSymbol structureSymbol)
     {
         _output.Write("struct ");
-        EmitMangledName(structureSymbol);
+        EmitSymbolName(structureSymbol);
         _output.WriteLine();
         _output.WriteLine('{');
         _output.Indent++;
@@ -211,7 +230,7 @@ internal sealed class C99Backend
             case TypeKind.Structure:
             case TypeKind.Enumeration:
                 _output.Write("struct ");
-                EmitMangledName(typeSymbol);
+                EmitSymbolName(typeSymbol);
                 break;
             case TypeKind.Void:
                 _output.Write("void");
@@ -221,6 +240,9 @@ internal sealed class C99Backend
                 break;
             case TypeKind.Int64:
                 _output.Write("int64_t");
+                break;
+            case TypeKind.USize:
+                _output.Write("uintptr_t");
                 break;
             case TypeKind.Bool:
                 _output.Write("bool");
@@ -279,7 +301,7 @@ internal sealed class C99Backend
 
         EmitTypeReference(functionSymbol.ReturnType);
         _output.Write(' ');
-        EmitMangledName(functionSymbol);
+        EmitSymbolName(functionSymbol);
         _output.Write('(');
         var isFirst = true;
         for (int i = 0; i < functionSymbol.Parameters.Length; i++)
@@ -344,7 +366,7 @@ internal sealed class C99Backend
     private void EmitLabelStatement(BoundLabelStatement statement)
     {
         _output.Indent--;
-        EmitMangledName(statement.Label);
+        EmitSymbolName(statement.Label);
         _output.WriteLine(':');
         _output.Indent++;
     }
@@ -352,7 +374,7 @@ internal sealed class C99Backend
     private void EmitGotoStatement(BoundGotoStatement statement)
     {
         _output.Write("goto ");
-        EmitMangledName(statement.Target);
+        EmitSymbolName(statement.Target);
         _output.WriteLine(';');
     }
 
@@ -369,7 +391,7 @@ internal sealed class C99Backend
         _output.WriteLine(')');
         _output.Indent++;
         _output.Write("goto ");
-        EmitMangledName(statement.Target);
+        EmitSymbolName(statement.Target);
         _output.WriteLine(';');
         _output.Indent--;
     }
@@ -380,7 +402,7 @@ internal sealed class C99Backend
 
         EmitTypeReference(statement.Local.Type);
         _output.Write(' ');
-        EmitMangledName(statement.Local);
+        EmitSymbolName(statement.Local);
         if (statement.Initializer != null)
         {
             _output.Write(" = ");
@@ -393,10 +415,10 @@ internal sealed class C99Backend
     private void EmitReturnStatement(BoundReturnStatement statement)
     {
         _output.Write("return");
-        if (statement.Value != null)
+        if (statement.Expression != null)
         {
             _output.Write(' ');
-            EmitExpression(statement.Value);
+            EmitExpression(statement.Expression);
         }
 
         _output.WriteLine(';');
@@ -464,7 +486,7 @@ internal sealed class C99Backend
     private void EmitCallExpression(BoundCallExpression expression)
     {
         var function = (SourceFunctionSymbol)expression.Function;
-        EmitMangledName(function);
+        EmitSymbolName(function);
         _output.Write('(');
         var isFirst = true;
         foreach (var argument in expression.Arguments)
@@ -481,9 +503,23 @@ internal sealed class C99Backend
 
     private void EmitAccessExpression(BoundAccessExpression expression)
     {
+        if (expression.ReferencedMember.SymbolKind == SymbolKind.EnumerationCase)
+        {
+            _output.Write('(');
+            EmitTypeReference(expression.ReferencedMember.ContainingType);
+            _output.Write(')');
+            _output.Write('{');
+
+            var enumCase = (EnumerationCaseSymbol)expression.ReferencedMember;
+            _output.Write(enumCase.Tag);
+
+            _output.Write('}');
+            return;
+        }
+
         EmitExpression(expression.Left);
         _output.Write('.');
-        _output.Write(expression.ReferencedMember.Name);
+        EmitSymbolName(expression.ReferencedMember);
     }
 
     private void EmitStructureLiteralExpression(BoundStructureLiteralExpression expression)
@@ -505,7 +541,7 @@ internal sealed class C99Backend
         EmitExpression(expression.Operand);
     }
 
-    private void EmitNameExpression(BoundNameExpression expression) => EmitMangledName(expression.ReferencedSymbol);
+    private void EmitNameExpression(BoundNameExpression expression) => EmitSymbolName(expression.ReferencedSymbol);
 
     private void EmitBinaryExpression(BoundBinaryExpression expression)
     {
@@ -535,8 +571,8 @@ internal sealed class C99Backend
 
     private void EmitAssignmentExpression(BoundAssignmentExpression expression)
     {
-        EmitMangledName(expression.Assignee);
+        EmitSymbolName(expression.Assignee);
         _output.Write(" = ");
-        EmitExpression(expression.Value);
+        EmitExpression(expression.Expression);
     }
 }

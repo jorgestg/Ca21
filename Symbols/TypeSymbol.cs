@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using Antlr4.Runtime;
 
 namespace Ca21.Symbols;
@@ -12,6 +11,7 @@ internal enum TypeKind
     Void,
     Int32,
     Int64,
+    USize,
     Bool,
     String
 }
@@ -22,6 +22,7 @@ internal abstract class TypeSymbol : Symbol
     public static readonly TypeSymbol Void = new NativeTypeSymbol("void", TypeKind.Void);
     public static readonly TypeSymbol Int32 = new NativeTypeSymbol("int32", TypeKind.Int32);
     public static readonly TypeSymbol Int64 = new NativeTypeSymbol("int64", TypeKind.Int64);
+    public static readonly TypeSymbol USize = new NativeTypeSymbol("usize", TypeKind.USize);
     public static readonly TypeSymbol Bool = new NativeTypeSymbol("bool", TypeKind.Bool);
     public static readonly TypeSymbol String = new NativeTypeSymbol("string", TypeKind.String);
 

@@ -100,6 +100,12 @@ internal sealed partial class LocalScopeBinder
         var literal = context.Value.Text.Replace("_", "");
         switch (environmentType.TypeKind)
         {
+            case TypeKind.USize:
+                if (nuint.TryParse(literal, out var nuintValue))
+                    return (nuintValue, TypeSymbol.USize);
+
+                break;
+
             case TypeKind.Int64:
                 if (long.TryParse(literal, out var longValue))
                     return (longValue, TypeSymbol.Int64);
@@ -123,10 +129,16 @@ internal sealed partial class LocalScopeBinder
 
     private BoundNameExpression BindNameExpression(NameExpressionContext context, DiagnosticList diagnostics)
     {
-        var referencedSymbol = Lookup(context.Name.Text);
+        if (TryBindType(context.Name, out var typeSymbol))
+            return new BoundNameExpression(context, typeSymbol);
+
+        if (context.Name is not SimpleNameTypeReferenceContext c)
+            return new BoundNameExpression(context, TypeSymbol.Missing);
+
+        var referencedSymbol = Lookup(c.Name.Text);
         if (referencedSymbol == null)
         {
-            diagnostics.Add(context, DiagnosticMessages.NameNotFound(context.Name.Text));
+            diagnostics.Add(context, DiagnosticMessages.NameNotFound(c.Name.Text));
             referencedSymbol = Symbol.Missing;
         }
 
@@ -336,16 +348,24 @@ internal sealed partial class LocalScopeBinder
         if (assignee is not BoundNameExpression name)
         {
             diagnostics.Add(assignee.Context, DiagnosticMessages.ExpressionIsNotAssignable);
-            return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
+            return new BoundAssignmentExpression(
+                context,
+                Symbol.Missing,
+                BindExpression(context.Expression, diagnostics)
+            );
         }
 
         if (name.ReferencedSymbol.SymbolKind is not SymbolKind.Local and not SymbolKind.Field)
         {
             diagnostics.Add(assignee.Context, DiagnosticMessages.SymbolIsNotAssignable(name.ReferencedSymbol.Name));
-            return new BoundAssignmentExpression(context, Symbol.Missing, BindExpression(context.Value, diagnostics));
+            return new BoundAssignmentExpression(
+                context,
+                Symbol.Missing,
+                BindExpression(context.Expression, diagnostics)
+            );
         }
 
-        var value = BindExpression(context.Value, diagnostics, name.ReferencedSymbol.Type);
+        var value = BindExpression(context.Expression, diagnostics, name.ReferencedSymbol.Type);
         if (name.ReferencedSymbol.SymbolKind == SymbolKind.Local && !((LocalSymbol)name.ReferencedSymbol).IsMutable)
             diagnostics.Add(assignee.Context, DiagnosticMessages.NameIsImmutable(name.ReferencedSymbol.Name));
 

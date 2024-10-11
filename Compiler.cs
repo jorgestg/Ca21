@@ -96,10 +96,10 @@ internal sealed class Compiler
 
     private void CompileReturnStatement(BoundReturnStatement statement)
     {
-        if (statement.Value == null)
+        if (statement.Expression == null)
             return;
 
-        CompileExpression(statement.Value);
+        CompileExpression(statement.Expression);
     }
 
     private void CompileExpressionStatement(BoundExpressionStatement statement)
@@ -155,6 +155,6 @@ internal sealed class Compiler
 
     private void CompileAssignmentExpression(BoundAssignmentExpression expression)
     {
-        CompileExpression(expression.Value);
+        CompileExpression(expression.Expression);
     }
 }

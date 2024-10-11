@@ -94,4 +94,5 @@ internal sealed class EnumerationCaseSymbol(EnumerationCaseDefinitionContext con
     public override string Name => Context.Name.Text;
     public override TypeSymbol Type => ContainingType;
     public override EnumerationSymbol ContainingType { get; } = enumeration;
+    public int Tag => ContainingType.Context._Cases.IndexOf(Context);
 }
