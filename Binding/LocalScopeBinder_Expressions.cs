@@ -142,44 +142,73 @@ internal sealed partial class LocalScopeBinder
     private BoundCallExpression BindCallExpression(CallExpressionContext context, DiagnosticList diagnostics)
     {
         var callee = BindExpression(context.Callee, diagnostics);
-        if (callee.Kind != BoundNodeKind.NameExpression)
-        {
-            diagnostics.Add(context, DiagnosticMessages.ExpressionIsNotCallable);
-            return new BoundCallExpression(
-                context.Callee,
-                FunctionSymbol.Missing,
-                BindArgumentsUnchecked(context, diagnostics)
-            );
-        }
 
-        var nameExpression = (BoundNameExpression)callee;
-        if (
-            nameExpression.ReferencedSymbol.SymbolKind != SymbolKind.Function
-            && nameExpression.ReferencedSymbol.Type.TypeKind != TypeKind.Function
-        )
+        FunctionSymbol functionSymbol;
+        switch (callee.Kind)
         {
-            if (nameExpression.ReferencedSymbol != Symbol.Missing)
-            {
-                diagnostics.Add(
-                    nameExpression.Context,
-                    DiagnosticMessages.ValueOfTypeIsNotCallable(nameExpression.ReferencedSymbol.Type)
+            case BoundNodeKind.NameExpression:
+                var nameExpression = (BoundNameExpression)callee;
+                if (nameExpression.ReferencedSymbol.SymbolKind == SymbolKind.Function)
+                {
+                    functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
+                }
+                else if (nameExpression.ReferencedSymbol == Symbol.Missing)
+                {
+                    functionSymbol = FunctionSymbol.Missing;
+                }
+                else if (nameExpression.ReferencedSymbol.Type.TypeKind == TypeKind.Function)
+                {
+                    functionSymbol = ((FunctionTypeSymbol)nameExpression.ReferencedSymbol.Type).FunctionSymbol;
+                }
+                else
+                {
+                    diagnostics.Add(callee.Context, DiagnosticMessages.ValueOfTypeIsNotCallable(callee.Type));
+                    return new BoundCallExpression(
+                        context,
+                        FunctionSymbol.Missing,
+                        BindArgumentsUnchecked(context, diagnostics)
+                    );
+                }
+
+                break;
+
+            case BoundNodeKind.AccessExpression:
+                var accessExpression = (BoundAccessExpression)callee;
+                if (accessExpression.ReferencedMember.SymbolKind == SymbolKind.Function)
+                {
+                    functionSymbol = (FunctionSymbol)accessExpression.ReferencedMember;
+                }
+                else if (accessExpression.ReferencedMember == MemberSymbol.Missing)
+                {
+                    functionSymbol = FunctionSymbol.Missing;
+                }
+                else if (accessExpression.ReferencedMember.Type.TypeKind == TypeKind.Function)
+                {
+                    functionSymbol = ((FunctionTypeSymbol)accessExpression.ReferencedMember.Type).FunctionSymbol;
+                }
+                else
+                {
+                    diagnostics.Add(callee.Context, DiagnosticMessages.ValueOfTypeIsNotCallable(callee.Type));
+                    return new BoundCallExpression(
+                        context,
+                        FunctionSymbol.Missing,
+                        BindArgumentsUnchecked(context, diagnostics)
+                    );
+                }
+
+                break;
+
+            default:
+                diagnostics.Add(callee.Context, DiagnosticMessages.ExpressionIsNotCallable);
+                return new BoundCallExpression(
+                    context,
+                    FunctionSymbol.Missing,
+                    BindArgumentsUnchecked(context, diagnostics)
                 );
-            }
-
-            return new BoundCallExpression(
-                context,
-                FunctionSymbol.Missing,
-                BindArgumentsUnchecked(context, diagnostics)
-            );
         }
 
-        var functionSymbol =
-            nameExpression.ReferencedSymbol.SymbolKind == SymbolKind.Function
-                ? (FunctionSymbol)nameExpression.ReferencedSymbol
-                : ((FunctionTypeSymbol)nameExpression.ReferencedSymbol.Type).FunctionSymbol;
-
-        if (context.ArgumentList == null)
-            return new BoundCallExpression(context, functionSymbol, []);
+        if (functionSymbol.Parameters.Length == 0)
+            return new BoundCallExpression(context, functionSymbol, BindArgumentsUnchecked(context, diagnostics));
 
         var arguments = context.ArgumentList._Arguments;
         var argumentsBuilder = new ArrayBuilder<BoundExpression>(arguments.Count);
@@ -221,18 +250,27 @@ internal sealed partial class LocalScopeBinder
     private BoundAccessExpression BindAccessExpression(AccessExpressionContext context, DiagnosticList diagnostics)
     {
         var left = BindExpression(context.Left, diagnostics);
-        var type = left is BoundNameExpression { ReferencedSymbol.SymbolKind: SymbolKind.Type } nameExpression
-            ? (TypeSymbol)nameExpression.ReferencedSymbol
-            : left.Type;
+        IContainingSymbol symbolWithMembers;
+        if (left.Kind != BoundNodeKind.NameExpression)
+        {
+            symbolWithMembers = TypeSymbol.Missing;
+        }
+        else
+        {
+            var nameExpression = (BoundNameExpression)left;
+            symbolWithMembers = nameExpression.ReferencedSymbol.SymbolKind is SymbolKind.Type or SymbolKind.Module
+                ? (IContainingSymbol)nameExpression.ReferencedSymbol
+                : left.Type;
+        }
 
-        if (type == TypeSymbol.Missing)
-            return new BoundAccessExpression(context, left, TypeMemberSymbol.Missing);
+        if (symbolWithMembers == TypeSymbol.Missing)
+            return new BoundAccessExpression(context, left, MemberSymbol.Missing);
 
-        if (type.TryGetMember(context.Right.Text, out var member))
+        if (symbolWithMembers.TryGetMember(context.Right.Text, out var member))
             return new BoundAccessExpression(context, left, member);
 
         diagnostics.Add(context.Right, DiagnosticMessages.TypeDoesNotContainMember(left.Type, context.Right.Text));
-        return new BoundAccessExpression(context, left, TypeMemberSymbol.Missing);
+        return new BoundAccessExpression(context, left, MemberSymbol.Missing);
     }
 
     private BoundStructureLiteralExpression BindStructureLiteralExpression(
@@ -244,7 +282,7 @@ internal sealed partial class LocalScopeBinder
         var fieldInitializers = new ArrayBuilder<BoundFieldInitializer>(context._Fields.Count);
         foreach (var fieldInitializerContext in context._Fields)
         {
-            TypeMemberSymbol field;
+            IMemberSymbol field;
             IToken name;
             BoundExpression expression;
 
@@ -271,7 +309,7 @@ internal sealed partial class LocalScopeBinder
                     throw new UnreachableException();
             }
 
-            if (field == TypeMemberSymbol.Missing && referencedType != TypeSymbol.Missing)
+            if (field == MemberSymbol.Missing && referencedType != TypeSymbol.Missing)
                 diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(referencedType, name.Text));
 
             fieldInitializers.Add(new BoundFieldInitializer(context, (FieldSymbol)field, expression));

@@ -7,12 +7,13 @@ using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
-internal interface IModuleMemberSymbol : ISymbol
+internal readonly struct ModuleImport(ModuleSymbol moduleSymbol, string? alias)
 {
-    ModuleSymbol ContainingModule { get; }
+    public ModuleSymbol ModuleSymbol { get; } = moduleSymbol;
+    public string? Alias { get; } = alias;
 }
 
-internal sealed class ModuleSymbol : Symbol
+internal sealed class ModuleSymbol : Symbol, IContainingSymbol
 {
     public ModuleSymbol(PackageSymbol package, string name, ImmutableArray<CompilationUnitContext> roots)
     {
@@ -44,8 +45,8 @@ internal sealed class ModuleSymbol : Symbol
         }
     }
 
-    private FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleSymbol>>? _imports;
-    public FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleSymbol>> Imports
+    private FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleImport>>? _imports;
+    public FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleImport>> Imports
     {
         get
         {
@@ -56,8 +57,8 @@ internal sealed class ModuleSymbol : Symbol
         }
     }
 
-    private ImmutableArray<IModuleMemberSymbol> _members;
-    public ImmutableArray<IModuleMemberSymbol> Members
+    private ImmutableArray<IMemberSymbol> _members;
+    public ImmutableArray<IMemberSymbol> Members
     {
         get
         {
@@ -68,8 +69,8 @@ internal sealed class ModuleSymbol : Symbol
         }
     }
 
-    private FrozenDictionary<string, IModuleMemberSymbol>? _memberMap;
-    public FrozenDictionary<string, IModuleMemberSymbol> MemberMap
+    private FrozenDictionary<string, IMemberSymbol>? _memberMap;
+    public FrozenDictionary<string, IMemberSymbol> MemberMap
     {
         get
         {
@@ -80,8 +81,15 @@ internal sealed class ModuleSymbol : Symbol
         }
     }
 
+    public bool TryGetMember(string name, out IMemberSymbol symbol)
+    {
+        var result = MemberMap.TryGetValue(name, out var member);
+        symbol = member ?? MemberSymbol.Missing;
+        return result;
+    }
+
     public IEnumerable<T> GetMembers<T>()
-        where T : IModuleMemberSymbol
+        where T : IMemberSymbol
     {
         foreach (var member in Members)
         {
@@ -99,25 +107,25 @@ internal sealed class ModuleSymbol : Symbol
         foreach (var root in Roots)
             definitionCount += root._Definitions.Count;
 
-        var importsMapBuilder = new Dictionary<CompilationUnitContext, List<ModuleSymbol>>(Roots.Length);
-        var memberMapBuilder = new Dictionary<string, IModuleMemberSymbol>(definitionCount);
-        var membersBuilder = new ArrayBuilder<IModuleMemberSymbol>(definitionCount);
+        var importsMapBuilder = new Dictionary<CompilationUnitContext, List<ModuleImport>>(Roots.Length);
+        var memberMapBuilder = new Dictionary<string, IMemberSymbol>(definitionCount);
+        var membersBuilder = new ArrayBuilder<IMemberSymbol>(definitionCount);
         foreach (var root in Roots)
         {
             CreateDefinition(diagnosticsBuilder, memberMapBuilder, ref membersBuilder, importsMapBuilder, root);
         }
 
         _diagnostics = diagnosticsBuilder.GetImmutableArray();
-        _imports = importsMapBuilder.ToFrozenDictionary(pair => pair.Key, kvp => kvp.Value.ToImmutableArray());
+        _imports = importsMapBuilder.ToFrozenDictionary(pair => pair.Key, pair => pair.Value.ToImmutableArray());
         _members = membersBuilder.MoveToImmutable();
         _memberMap = memberMapBuilder.ToFrozenDictionary();
     }
 
     private void CreateDefinition(
         DiagnosticList diagnostics,
-        Dictionary<string, IModuleMemberSymbol> memberMap,
-        ref ArrayBuilder<IModuleMemberSymbol> members,
-        Dictionary<CompilationUnitContext, List<ModuleSymbol>> importMap,
+        Dictionary<string, IMemberSymbol> memberMap,
+        ref ArrayBuilder<IMemberSymbol> members,
+        Dictionary<CompilationUnitContext, List<ModuleImport>> importMap,
         CompilationUnitContext root
     )
     {
@@ -137,7 +145,13 @@ internal sealed class ModuleSymbol : Symbol
                 importMap.Add(root, imports);
             }
 
-            imports.Add(module);
+            if (context.Alias == null && IsInvalidIdentifier(module.Name))
+            {
+                diagnostics.Add(context.Path, DiagnosticMessages.ModuleNameIsNotAnIdentifier(module.Name));
+                continue;
+            }
+
+            imports.Add(new ModuleImport(module, context.Alias?.Text));
         }
 
         foreach (var definitionContext in root._Definitions)
@@ -146,7 +160,7 @@ internal sealed class ModuleSymbol : Symbol
             {
                 case TopLevelFunctionDefinitionContext { Function: var functionContext }:
                 {
-                    var functionSymbol = new SourceFunctionSymbol(functionContext, this);
+                    var functionSymbol = new SourceFunctionSymbol(functionContext, this, Binder.GetFileBinder(root));
                     members.Add(functionSymbol);
 
                     if (!memberMap.TryAdd(functionSymbol.Name, functionSymbol))
@@ -161,7 +175,7 @@ internal sealed class ModuleSymbol : Symbol
                 }
                 case TopLevelStructureDefinitionContext { Structure: var structureContext }:
                 {
-                    var structureSymbol = new StructureSymbol(structureContext, this);
+                    var structureSymbol = new StructureSymbol(structureContext, this, Binder.GetFileBinder(root));
                     members.Add(structureSymbol);
 
                     if (!memberMap.TryAdd(structureSymbol.Name, structureSymbol))
@@ -191,5 +205,21 @@ internal sealed class ModuleSymbol : Symbol
                 }
             }
         }
+    }
+
+    private static bool IsInvalidIdentifier(string name)
+    {
+        var c = name[0];
+        if (!char.IsAsciiLetter(c) && c != '_')
+            return true;
+
+        for (var i = 1; i < name.Length; i++)
+        {
+            c = name[i];
+            if (!char.IsAsciiLetterOrDigit(c) && c != '_')
+                return true;
+        }
+
+        return false;
     }
 }

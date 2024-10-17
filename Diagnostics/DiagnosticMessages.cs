@@ -6,6 +6,9 @@ internal static class DiagnosticMessages
 {
     public static string ModuleNotFound(string name) => $"Module `{name}` not found";
 
+    internal static string ModuleNameIsNotAnIdentifier(string name) =>
+        $"The module name `{name}` is not a valid identifier. Add an alias to reference it";
+
     public static string TypeMismatch(TypeSymbol expected, TypeSymbol got) =>
         $"Type mismatch. Expected `{expected.Name}`, got `{got.Name}`";
 
@@ -45,7 +48,7 @@ internal static class DiagnosticMessages
         $"`{type.Name}` does not contain member `{fieldName}`";
 
     public static string CycleDetected(FieldSymbol field) =>
-        $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingType.Name}`";
+        $"Cycle detected. The type `{field.Type.Name}` of field `{field.Name}` references `{field.ContainingSymbol.Name}`";
 
     public const string CodeIsUnreachable = "Code is unreachable";
 

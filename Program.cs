@@ -9,9 +9,9 @@ var rootCommand = new RootCommand("Ca21 Compiler CLI");
 var directoryArgument = new Argument<string>("directory", "The directory to compile");
 rootCommand.AddArgument(directoryArgument);
 
-var packageName = new Option<string>("--package", "The package name");
-packageName.AddAlias("-pkg");
-rootCommand.AddOption(packageName);
+var packageNameOption = new Option<string>("--package", "The package name");
+packageNameOption.AddAlias("-pkg");
+rootCommand.AddOption(packageNameOption);
 
 var outOption = new Option<string?>("--out", "The output filename");
 outOption.AddAlias("-o");
@@ -20,7 +20,7 @@ rootCommand.AddOption(outOption);
 var transpileOnlyOption = new Option<bool>("--transpile-only", "Just output C code");
 rootCommand.AddOption(transpileOnlyOption);
 
-rootCommand.SetHandler(Compile, directoryArgument, packageName, outOption, transpileOnlyOption);
+rootCommand.SetHandler(Compile, directoryArgument, packageNameOption, outOption, transpileOnlyOption);
 rootCommand.Invoke(args);
 
 static void Compile(string directory, string? packageName, string? outputPath, bool transpileOnly)
@@ -41,19 +41,19 @@ static void Compile(string directory, string? packageName, string? outputPath, b
         var compiler = Compiler.Compile(package);
         if (compiler.Diagnostics.Any())
         {
-            Console.ForegroundColor = ConsoleColor.DarkRed;
             foreach (var diagnostic in compiler.Diagnostics)
             {
-                Console.WriteLine(
-                    "{0}({1}, {2}): {3}",
-                    diagnostic.Position.Source.FileName,
-                    diagnostic.Position.GetLine(),
-                    diagnostic.Position.GetColumn(),
-                    diagnostic.Message
+                WriteError(
+                    string.Format(
+                        "{0}({1}, {2}): {3}",
+                        diagnostic.Position.Source.FileName,
+                        diagnostic.Position.GetLine(),
+                        diagnostic.Position.GetColumn(),
+                        diagnostic.Message
+                    )
                 );
             }
 
-            Console.ResetColor();
             return;
         }
 

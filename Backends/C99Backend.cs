@@ -8,7 +8,7 @@ namespace Ca21.Backends;
 internal sealed class C99Backend
 {
     private readonly IndentedTextWriter _output;
-    private readonly Dictionary<Symbol, string> _mangledNames = new();
+    private readonly Dictionary<ISymbol, string> _mangledNames = new();
     private readonly List<LocalSymbol> _locals = new(25);
     private readonly Dictionary<string, string> _constants;
 
@@ -63,16 +63,40 @@ internal sealed class C99Backend
             _output.WriteLine(';');
         }
 
-        foreach (var module in Compiler.Package.Modules)
-            EmitModule(module);
+        EmitPackage();
     }
 
-    private void EmitModule(ModuleSymbol moduleSymbol)
+    private void EmitPackage()
     {
         // C doesn't support forward-references, so we have to emit in order
+        var emitted = new HashSet<ModuleSymbol>(Compiler.Package.Modules.Length);
+        foreach (var module in Compiler.Package.Modules)
+        {
+            if (emitted.Contains(module))
+                continue;
+
+            EmitModule(module, emitted);
+            emitted.Add(module);
+        }
+    }
+
+    private void EmitModule(ModuleSymbol moduleSymbol, HashSet<ModuleSymbol> emittedModules)
+    {
+        foreach (var (_, imports) in moduleSymbol.Imports)
+        {
+            foreach (var import in imports)
+            {
+                if (emittedModules.Contains(import.ModuleSymbol))
+                    continue;
+
+                EmitModule(import.ModuleSymbol, emittedModules);
+                emittedModules.Add(import.ModuleSymbol);
+            }
+        }
+
         var enumerations = moduleSymbol.GetMembers<EnumerationSymbol>();
         var structures = moduleSymbol.GetMembers<StructureSymbol>();
-        var emitted = new HashSet<IModuleMemberSymbol>(structures.Count() + enumerations.Count());
+        var emitted = new HashSet<IMemberSymbol>(structures.Count() + enumerations.Count());
         foreach (var enumeration in enumerations)
         {
             EmitEnumeration(enumeration);
@@ -115,7 +139,7 @@ internal sealed class C99Backend
         }
     }
 
-    private void EmitSymbolName(Symbol symbol)
+    private void EmitSymbolName(ISymbol symbol)
     {
         switch (symbol.SymbolKind)
         {
@@ -157,7 +181,7 @@ internal sealed class C99Backend
 
         return;
 
-        void EmitMangledNameCore(Symbol symbol)
+        void EmitMangledNameCore(ISymbol symbol)
         {
             if (_mangledNames.TryGetValue(symbol, out var name))
             {
@@ -507,7 +531,7 @@ internal sealed class C99Backend
         if (expression.ReferencedMember.SymbolKind == SymbolKind.EnumerationCase)
         {
             _output.Write('(');
-            EmitTypeReference(expression.ReferencedMember.ContainingType);
+            EmitTypeReference((EnumerationSymbol)expression.ReferencedMember.ContainingSymbol);
             _output.Write(')');
             _output.Write('{');
 

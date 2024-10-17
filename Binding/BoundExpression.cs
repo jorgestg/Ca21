@@ -55,13 +55,13 @@ internal sealed class BoundCallExpression(
 internal sealed class BoundAccessExpression(
     ParserRuleContext context,
     BoundExpression left,
-    TypeMemberSymbol referencedMember
+    IMemberSymbol referencedMember
 ) : BoundExpression(context)
 {
     public override BoundNodeKind Kind => BoundNodeKind.AccessExpression;
     public override TypeSymbol Type => ReferencedMember.Type;
     public BoundExpression Left { get; } = left;
-    public TypeMemberSymbol ReferencedMember { get; } = referencedMember;
+    public IMemberSymbol ReferencedMember { get; } = referencedMember;
 }
 
 internal sealed class BoundStructureLiteralExpression(

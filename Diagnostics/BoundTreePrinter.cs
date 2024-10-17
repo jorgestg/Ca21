@@ -49,22 +49,22 @@ internal sealed class BoundTreePrinter
                 _writer.WriteLine(cgs.Target.Name);
                 break;
             case BoundNodeKind.LocalDeclaration:
-                var ld = (BoundLocalDeclaration)node;
+                var local = (BoundLocalDeclaration)node;
                 _writer.Write("let ");
-                _writer.Write(ld.Local.Name);
-                if (ld.Initializer != null)
+                _writer.Write(local.Local.Name);
+                if (local.Initializer != null)
                 {
                     _writer.Write(" = ");
-                    Print(ld.Initializer);
+                    Print(local.Initializer);
                 }
 
                 _writer.WriteLine();
                 break;
             case BoundNodeKind.ReturnStatement:
-                var rs = (BoundReturnStatement)node;
+                var ret = (BoundReturnStatement)node;
                 _writer.Write("return ");
-                if (rs.Expression != null)
-                    Print(rs.Expression);
+                if (ret.Expression != null)
+                    Print(ret.Expression);
 
                 _writer.WriteLine();
                 break;
@@ -78,11 +78,11 @@ internal sealed class BoundTreePrinter
                     Print(statement);
                 break;
             case BoundNodeKind.CastExpression:
-                var ce = (BoundCastExpression)node;
+                var cast = (BoundCastExpression)node;
                 _writer.Write("cast(");
-                _writer.Write(ce.Type.Name);
+                _writer.Write(cast.Type.Name);
                 _writer.Write(", ");
-                Print(ce.Expression);
+                Print(cast.Expression);
                 _writer.WriteLine(')');
                 break;
             case BoundNodeKind.LiteralExpression:
@@ -106,34 +106,38 @@ internal sealed class BoundTreePrinter
                 _writer.WriteLine(')');
                 break;
             case BoundNodeKind.AccessExpression:
+                var access = (BoundAccessExpression)node;
+                Print(access.Left);
+                _writer.Write('.');
+                _writer.Write(access.ReferencedMember.Name);
                 break;
             case BoundNodeKind.StructureLiteralExpression:
                 break;
             case BoundNodeKind.UnaryExpression:
-                var ue = (BoundUnaryExpression)node;
-                _writer.Write(ue.Operator.Kind);
+                var unary = (BoundUnaryExpression)node;
+                _writer.Write(unary.Operator.Kind);
                 _writer.Write('(');
-                Print(ue.Operand);
+                Print(unary.Operand);
                 _writer.Write(')');
                 break;
             case BoundNodeKind.NameExpression:
                 _writer.Write(((BoundNameExpression)node).ReferencedSymbol.Name);
                 break;
             case BoundNodeKind.BinaryExpression:
-                var be = (BoundBinaryExpression)node;
-                _writer.Write(be.Operator.Kind);
+                var binary = (BoundBinaryExpression)node;
+                _writer.Write(binary.Operator.Kind);
                 _writer.Write('(');
-                Print(be.Left);
+                Print(binary.Left);
                 _writer.Write(',');
                 _writer.Write(' ');
-                Print(be.Right);
+                Print(binary.Right);
                 _writer.Write(')');
                 break;
             case BoundNodeKind.AssignmentExpression:
-                var ae = (BoundAssignmentExpression)node;
-                _writer.Write(ae.Assignee.Name);
+                var assignment = (BoundAssignmentExpression)node;
+                _writer.Write(assignment.Assignee.Name);
                 _writer.Write(" = ");
-                Print(ae.Expression);
+                Print(assignment.Expression);
                 break;
         }
     }

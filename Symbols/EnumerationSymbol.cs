@@ -8,12 +8,13 @@ namespace Ca21.Symbols;
 
 internal sealed class EnumerationSymbol(EnumerationDefinitionContext context, ModuleSymbol module)
     : TypeSymbol,
-        IModuleMemberSymbol
+        IContainingSymbol,
+        IMemberSymbol
 {
     public override EnumerationDefinitionContext Context { get; } = context;
     public override string Name => Context.Name.Text;
     public override TypeKind TypeKind => TypeKind.Enumeration;
-    public ModuleSymbol ContainingModule { get; } = module;
+    public IContainingSymbol ContainingSymbol { get; } = module;
 
     private ImmutableArray<Diagnostic> _diagnostics;
     public ImmutableArray<Diagnostic> Diagnostics
@@ -51,7 +52,7 @@ internal sealed class EnumerationSymbol(EnumerationDefinitionContext context, Mo
         }
     }
 
-    public override bool TryGetMember(string name, out TypeMemberSymbol member)
+    public override bool TryGetMember(string name, out IMemberSymbol member)
     {
         if (CaseMap.TryGetValue(name, out var @case))
         {
@@ -87,12 +88,13 @@ internal sealed class EnumerationSymbol(EnumerationDefinitionContext context, Mo
 }
 
 internal sealed class EnumerationCaseSymbol(EnumerationCaseDefinitionContext context, EnumerationSymbol enumeration)
-    : TypeMemberSymbol
+    : Symbol,
+        IMemberSymbol
 {
     public override SymbolKind SymbolKind => SymbolKind.EnumerationCase;
     public override EnumerationCaseDefinitionContext Context { get; } = context;
     public override string Name => Context.Name.Text;
-    public override TypeSymbol Type => ContainingType;
-    public override EnumerationSymbol ContainingType { get; } = enumeration;
-    public int Tag => ContainingType.Context._Cases.IndexOf(Context);
+    public override TypeSymbol Type => (EnumerationSymbol)ContainingSymbol;
+    public IContainingSymbol ContainingSymbol { get; } = enumeration;
+    public int Tag => ((EnumerationSymbol)ContainingSymbol).Context._Cases.IndexOf(Context);
 }

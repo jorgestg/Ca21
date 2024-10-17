@@ -119,7 +119,14 @@ internal static class Lowerer
         //                               | @end:
         var statementCount = statement.Body.Statements.Length + 2;
         if (statement.ElseClause != null)
-            statementCount += statement.ElseClause.Statements.Length + 2;
+            statementCount += statement.ElseClause.Statements.Length;
+
+        var needEndLabel = false;
+        if (statement.Body.Statements[^1].Kind != BoundNodeKind.ReturnStatement)
+        {
+            needEndLabel = true;
+            statementCount += 2;
+        }
 
         statements = new ArrayBuilder<BoundStatement>(statementCount);
 
@@ -138,6 +145,13 @@ internal static class Lowerer
         if (statement.ElseClause == null)
         {
             statements.Add(new BoundLabelStatement(statement.Context, elseLabel));
+            return new BoundBlock(statement.Context, statements.MoveToImmutable());
+        }
+
+        if (!needEndLabel)
+        {
+            statements.Add(new BoundLabelStatement(statement.Context, elseLabel));
+            LowerStatementsToBuilder(statement.ElseClause.Statements, ref statements);
             return new BoundBlock(statement.Context, statements.MoveToImmutable());
         }
 

@@ -8,19 +8,19 @@ using static Ca21.Antlr.Ca21Parser;
 
 namespace Ca21.Symbols;
 
-internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
+internal sealed class StructureSymbol : TypeSymbol, IMemberSymbol
 {
-    public StructureSymbol(StructureDefinitionContext context, ModuleSymbol module)
+    public StructureSymbol(StructureDefinitionContext context, ModuleSymbol module, FileBinder fileBinder)
     {
         Context = context;
-        Binder = new StructureBinder(this);
-        ContainingModule = module;
+        Binder = new StructureBinder(fileBinder, this);
+        ContainingSymbol = module;
     }
 
     public override StructureDefinitionContext Context { get; }
     public override string Name => Context.Name.Text;
     public override TypeKind TypeKind => TypeKind.Structure;
-    public ModuleSymbol ContainingModule { get; }
+    public IContainingSymbol ContainingSymbol { get; }
 
     /// <summary>
     /// Cycle check status: Not started = null, Running = false, Done = true
@@ -64,7 +64,7 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
         }
     }
 
-    public override bool TryGetMember(string name, out TypeMemberSymbol member)
+    public override bool TryGetMember(string name, out IMemberSymbol member)
     {
         if (FieldMap.TryGetValue(name, out var field))
         {
@@ -124,11 +124,12 @@ internal sealed class StructureSymbol : TypeSymbol, IModuleMemberSymbol
 }
 
 internal sealed class FieldSymbol(FieldDefinitionContext context, StructureSymbol structure, TypeSymbol type)
-    : TypeMemberSymbol
+    : Symbol,
+        IMemberSymbol
 {
     public override SymbolKind SymbolKind => SymbolKind.Field;
     public override FieldDefinitionContext Context { get; } = context;
     public override string Name => Context.Name.Text;
     public override TypeSymbol Type { get; } = type;
-    public override StructureSymbol ContainingType { get; } = structure;
+    public IContainingSymbol ContainingSymbol { get; } = structure;
 }

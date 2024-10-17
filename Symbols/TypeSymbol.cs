@@ -17,7 +17,7 @@ internal enum TypeKind
     String
 }
 
-internal abstract class TypeSymbol : Symbol
+internal abstract class TypeSymbol : Symbol, IContainingSymbol
 {
     public static new readonly TypeSymbol Missing = new NativeTypeSymbol("???", TypeKind.None);
     public static readonly TypeSymbol Void = new NativeTypeSymbol("void", TypeKind.Void);
@@ -30,9 +30,9 @@ internal abstract class TypeSymbol : Symbol
     public override SymbolKind SymbolKind => SymbolKind.Type;
     public abstract TypeKind TypeKind { get; }
 
-    public virtual bool TryGetMember(string name, out TypeMemberSymbol member)
+    public virtual bool TryGetMember(string name, out IMemberSymbol member)
     {
-        member = TypeMemberSymbol.Missing;
+        member = MemberSymbol.Missing;
         return false;
     }
 
@@ -148,17 +148,12 @@ internal sealed class FunctionTypeSymbol(FunctionSymbol functionSymbol) : TypeSy
     public override int GetHashCode() => base.GetHashCode();
 }
 
-internal abstract class TypeMemberSymbol : Symbol
+internal sealed class MemberSymbol : Symbol, IMemberSymbol
 {
-    public static new readonly TypeMemberSymbol Missing = new MissingTypeMemberSymbol();
+    public static new readonly MemberSymbol Missing = new();
 
-    public abstract TypeSymbol ContainingType { get; }
-
-    private sealed class MissingTypeMemberSymbol : TypeMemberSymbol
-    {
-        public override SymbolKind SymbolKind => SymbolKind.None;
-        public override ParserRuleContext Context => throw new InvalidOperationException();
-        public override string Name => throw new InvalidOperationException();
-        public override TypeSymbol ContainingType => throw new InvalidOperationException();
-    }
+    public override SymbolKind SymbolKind => SymbolKind.None;
+    public override ParserRuleContext Context => throw new InvalidOperationException();
+    public override string Name => throw new InvalidOperationException();
+    public IContainingSymbol ContainingSymbol => throw new InvalidOperationException();
 }

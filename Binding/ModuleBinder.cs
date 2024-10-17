@@ -7,11 +7,12 @@ namespace Ca21.Binding;
 
 internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
 {
-    private readonly ModuleSymbol _moduleSymbol = moduleSymbol;
+    private readonly Dictionary<CompilationUnitContext, FileBinder> _fileBinders = new();
 
     public override Binder Parent => throw new InvalidOperationException();
+    public ModuleSymbol ModuleSymbol { get; } = moduleSymbol;
 
-    public override Symbol? Lookup(string name) => (Symbol?)_moduleSymbol.MemberMap.GetValueOrDefault(name);
+    public override Symbol? Lookup(string name) => (Symbol?)ModuleSymbol.MemberMap.GetValueOrDefault(name);
 
     private static TypeSymbol BindTypeKeyword(KeywordTypeNameContext keywordReference)
     {
@@ -32,7 +33,7 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
             return BindTypeKeyword(keywordReference);
 
         var nameReference = (SimpleNameTypeNameContext)context;
-        if (!_moduleSymbol.MemberMap.TryGetValue(nameReference.Name.Text, out var member))
+        if (!ModuleSymbol.MemberMap.TryGetValue(nameReference.Name.Text, out var member))
         {
             diagnostics.Add(nameReference, DiagnosticMessages.NameNotFound(nameReference.Name.Text));
             return TypeSymbol.Missing;
@@ -45,5 +46,13 @@ internal sealed class ModuleBinder(ModuleSymbol moduleSymbol) : Binder
         }
 
         return (TypeSymbol)member;
+    }
+
+    public FileBinder GetFileBinder(CompilationUnitContext root)
+    {
+        if (_fileBinders.TryGetValue(root, out var fileBinder))
+            return fileBinder;
+
+        return _fileBinders[root] = new FileBinder(this, root);
     }
 }

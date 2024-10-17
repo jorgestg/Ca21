@@ -20,18 +20,18 @@ internal abstract class FunctionSymbol : Symbol
     {
         public override ParserRuleContext Context => throw new InvalidOperationException();
         public override ImmutableArray<SourceParameterSymbol> Parameters => throw new InvalidOperationException();
-        public override TypeSymbol ReturnType => throw new InvalidOperationException();
+        public override TypeSymbol ReturnType => TypeSymbol.Missing;
         public override string Name => throw new InvalidOperationException();
     }
 }
 
-internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
+internal sealed class SourceFunctionSymbol : FunctionSymbol, IMemberSymbol
 {
-    public SourceFunctionSymbol(FunctionDefinitionContext context, ModuleSymbol module)
+    public SourceFunctionSymbol(FunctionDefinitionContext context, ModuleSymbol module, FileBinder fileBinder)
     {
         Context = context;
-        Binder = new FunctionBinder(this);
-        ContainingModule = module;
+        Binder = new FunctionBinder(fileBinder, this);
+        ContainingSymbol = module;
     }
 
     public override FunctionDefinitionContext Context { get; }
@@ -77,7 +77,7 @@ internal sealed class SourceFunctionSymbol : FunctionSymbol, IModuleMemberSymbol
         }
     }
 
-    public ModuleSymbol ContainingModule { get; }
+    public IContainingSymbol ContainingSymbol { get; }
     public FunctionBinder Binder { get; }
 
     private FrozenDictionary<string, SourceParameterSymbol>? _parameterMap;

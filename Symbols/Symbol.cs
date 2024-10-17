@@ -17,6 +17,7 @@ internal interface ISymbol
 {
     SymbolKind SymbolKind { get; }
     string Name { get; }
+    TypeSymbol Type { get; }
 }
 
 internal abstract class Symbol : ISymbol
