@@ -2,7 +2,11 @@ grammar Ca21;
 
 // Parser
 compilationUnit
-    : Definitions+=topLevelDefinition+ EOF
+    : UseDirectives+=useDirectives* Definitions+=topLevelDefinition+ EOF
+    ;
+
+useDirectives
+    : 'use' Path=String Alias=Identifier? ';'
     ;
 
 topLevelDefinition
@@ -12,15 +16,17 @@ topLevelDefinition
     ;
 
 enumerationDefinition
-    : 'enum' Name=Identifier '{' (Cases+=enumerationCaseDefinition (',' Cases+=enumerationCaseDefinition)*) '}'
+    : 'enum' Name=Identifier '{'
+        (Cases+=enumerationCaseDefinition (',' Cases+=enumerationCaseDefinition)*) 
+      '}'
     ;
 
 enumerationCaseDefinition
-    : Name=Identifier
+    : Name=Identifier ('(' Value=typeName ')')?
     ;
 
 functionSignature
-    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeReference?
+    : 'func' Name=Identifier '(' ParameterList=parameterList? ')' ReturnType=typeName?
     ;
 
 parameterList
@@ -28,7 +34,7 @@ parameterList
     ;
 
 parameterDefinition
-    : MutModifier='mut'? Name=Identifier Type=typeReference
+    : MutModifier='mut'? Name=Identifier Type=typeName
     ;
 
 structureDefinition
@@ -36,7 +42,7 @@ structureDefinition
     ;
 
 fieldDefinition
-    : Name=Identifier Type=typeReference
+    : Name=Identifier Type=typeName
     ;
 
 functionDefinition
@@ -47,9 +53,11 @@ externModifier
     : 'extern' ExternName=String?
     ;
 
-typeReference
-    : TypeKeyword=typeKeyword #KeywordTypeReference
-    | Name=Identifier #SimpleNameTypeReference
+typeName
+    : TypeKeyword=typeKeyword #KeywordTypeName
+    | Name=Identifier         #SimpleNameTypeName
+    | '&' InnerType=typeName  #ReferenceTypeName
+    | '[]' InnerType=typeName #SliceTypeName
     ;
 
 typeKeyword
@@ -84,10 +92,10 @@ expressionOrBlock
 
 expression
     : Literal=literal                                                     #LiteralExpression
-    | Name=typeReference                                                  #NameExpression
+    | Name=Identifier                                                     #NameExpression
     | Callee=expression '(' ArgumentList=argumentList? ')'                #CallExpression
     | Left=expression '.' Right=Identifier                                #AccessExpression
-    | Structure=typeReference '{'
+    | Structure=typeName '{'
         (Fields+=fieldInitializer (',' Fields+=fieldInitializer)*)
       '}'                                                                 #StructureLiteralExpression
     | Operator=('!'|'-') Operand=expression                               #UnaryExpression
@@ -136,6 +144,7 @@ FalseKeyword: 'false';
 WhileKeyword: 'while';
 ReturnKeyword: 'return';
 USizeKeyword: 'usize';
+UseKeyword: 'use';
 
 // Literals
 String: '"' .*? '"';
@@ -165,6 +174,7 @@ GreaterThanOrEqual: '>=';
 Equal: '=';
 DoubleEqual: '==';
 BangEqual: '!=';
+Ampersand: '&';
 DoubleAmpersand: '&&';
 DoublePipe: '||';
 

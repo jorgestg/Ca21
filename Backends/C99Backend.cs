@@ -63,7 +63,8 @@ internal sealed class C99Backend
             _output.WriteLine(';');
         }
 
-        EmitModule(Compiler.ModuleSymbol);
+        foreach (var module in Compiler.Package.Modules)
+            EmitModule(module);
     }
 
     private void EmitModule(ModuleSymbol moduleSymbol)
@@ -524,7 +525,28 @@ internal sealed class C99Backend
 
     private void EmitStructureLiteralExpression(BoundStructureLiteralExpression expression)
     {
-        _output.Write(expression.Structure.Name);
+        _output.Write('(');
+        EmitTypeReference(expression.Structure);
+        _output.WriteLine(')');
+        _output.WriteLine('{');
+        _output.Indent++;
+
+        var isFirst = true;
+        foreach (var fieldInitializer in expression.FieldInitializers)
+        {
+            if (!isFirst)
+                _output.WriteLine(", ");
+
+            _output.Write('.');
+            EmitSymbolName(fieldInitializer.Field);
+            _output.Write(" = ");
+            EmitExpression(fieldInitializer.Expression);
+            isFirst = false;
+        }
+
+        _output.Indent--;
+        _output.WriteLine();
+        _output.Write('}');
     }
 
     private void EmitUnaryExpression(BoundUnaryExpression expression)

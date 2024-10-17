@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Ca21.Diagnostics;
 using Ca21.Symbols;
 using static Ca21.Antlr.Ca21Parser;
@@ -15,12 +14,7 @@ internal abstract class Binder
         return Parent.Lookup(name);
     }
 
-    public virtual bool TryBindType(TypeReferenceContext context, [MaybeNullWhen(false)] out TypeSymbol typeSymbol)
-    {
-        return Parent.TryBindType(context, out typeSymbol);
-    }
-
-    public virtual TypeSymbol BindType(TypeReferenceContext context, DiagnosticList diagnostics)
+    public virtual TypeSymbol BindType(TypeNameContext context, DiagnosticList diagnostics)
     {
         return Parent.BindType(context, diagnostics);
     }

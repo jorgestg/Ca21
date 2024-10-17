@@ -36,6 +36,7 @@ internal sealed class FunctionBinder(SourceFunctionSymbol functionSymbol) : Bind
         var boundBody = BindBlock(context.Body, diagnostics);
         var loweredBody = Lowerer.Lower(boundBody);
         var cfg = ControlFlowGraph.Create(loweredBody);
+        BoundTreePrinter.Print(cfg.Statements, Console.Out);
         if (_functionSymbol.ReturnType != TypeSymbol.Void && !cfg.AllPathsReturn())
             diagnostics.Add(_functionSymbol.Context.Signature.Name, DiagnosticMessages.AllCodePathsMustReturn);
 

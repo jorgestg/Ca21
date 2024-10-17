@@ -8,6 +8,7 @@ internal enum TypeKind
     Structure,
     Enumeration,
     Function,
+    Reference,
     Void,
     Int32,
     Int64,
@@ -27,7 +28,7 @@ internal abstract class TypeSymbol : Symbol
     public static readonly TypeSymbol String = new NativeTypeSymbol("string", TypeKind.String);
 
     public override SymbolKind SymbolKind => SymbolKind.Type;
-    public virtual TypeKind TypeKind => TypeKind.None;
+    public abstract TypeKind TypeKind { get; }
 
     public virtual bool TryGetMember(string name, out TypeMemberSymbol member)
     {

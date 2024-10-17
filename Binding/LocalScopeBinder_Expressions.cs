@@ -129,16 +129,10 @@ internal sealed partial class LocalScopeBinder
 
     private BoundNameExpression BindNameExpression(NameExpressionContext context, DiagnosticList diagnostics)
     {
-        if (TryBindType(context.Name, out var typeSymbol))
-            return new BoundNameExpression(context, typeSymbol);
-
-        if (context.Name is not SimpleNameTypeReferenceContext c)
-            return new BoundNameExpression(context, TypeSymbol.Missing);
-
-        var referencedSymbol = Lookup(c.Name.Text);
+        var referencedSymbol = Lookup(context.Name.Text);
         if (referencedSymbol == null)
         {
-            diagnostics.Add(context, DiagnosticMessages.NameNotFound(c.Name.Text));
+            diagnostics.Add(context, DiagnosticMessages.NameNotFound(context.Name.Text));
             referencedSymbol = Symbol.Missing;
         }
 
@@ -159,7 +153,10 @@ internal sealed partial class LocalScopeBinder
         }
 
         var nameExpression = (BoundNameExpression)callee;
-        if (nameExpression.ReferencedSymbol.SymbolKind != SymbolKind.Function)
+        if (
+            nameExpression.ReferencedSymbol.SymbolKind != SymbolKind.Function
+            && nameExpression.ReferencedSymbol.Type.TypeKind != TypeKind.Function
+        )
         {
             if (nameExpression.ReferencedSymbol != Symbol.Missing)
             {
@@ -176,7 +173,11 @@ internal sealed partial class LocalScopeBinder
             );
         }
 
-        var functionSymbol = (FunctionSymbol)nameExpression.ReferencedSymbol;
+        var functionSymbol =
+            nameExpression.ReferencedSymbol.SymbolKind == SymbolKind.Function
+                ? (FunctionSymbol)nameExpression.ReferencedSymbol
+                : ((FunctionTypeSymbol)nameExpression.ReferencedSymbol.Type).FunctionSymbol;
+
         if (context.ArgumentList == null)
             return new BoundCallExpression(context, functionSymbol, []);
 
@@ -245,14 +246,14 @@ internal sealed partial class LocalScopeBinder
         {
             TypeMemberSymbol field;
             IToken name;
-            BoundExpression value;
+            BoundExpression expression;
 
             switch (fieldInitializerContext)
             {
                 case AssignmentFieldInitializerContext c:
                     name = c.Name;
                     referencedType.TryGetMember(name.Text, out field);
-                    value = BindExpressionOrBlock(c.Value, diagnostics, field.Type);
+                    expression = BindExpressionOrBlock(c.Value, diagnostics, field.Type);
                     break;
 
                 case NameOnlyFieldInitializerContext c:
@@ -263,7 +264,7 @@ internal sealed partial class LocalScopeBinder
                         diagnostics.Add(c.Name, DiagnosticMessages.NameNotFound(name.Text));
 
                     referencedType.TryGetMember(name.Text, out field);
-                    value = BindConversion(new BoundNameExpression(c, referencedSymbol), field.Type, diagnostics);
+                    expression = BindConversion(new BoundNameExpression(c, referencedSymbol), field.Type, diagnostics);
                     break;
 
                 default:
@@ -273,7 +274,7 @@ internal sealed partial class LocalScopeBinder
             if (field == TypeMemberSymbol.Missing && referencedType != TypeSymbol.Missing)
                 diagnostics.Add(name, DiagnosticMessages.TypeDoesNotContainMember(referencedType, name.Text));
 
-            fieldInitializers.Add(new BoundFieldInitializer(context, (FieldSymbol)field, value));
+            fieldInitializers.Add(new BoundFieldInitializer(context, (FieldSymbol)field, expression));
         }
 
         return new BoundStructureLiteralExpression(context, referencedType, fieldInitializers.MoveToImmutable());

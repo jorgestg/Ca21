@@ -76,15 +76,11 @@ internal sealed class BoundStructureLiteralExpression(
     public ImmutableArray<BoundFieldInitializer> FieldInitializers { get; } = fieldInitializers;
 }
 
-internal readonly struct BoundFieldInitializer(
-    ParserRuleContext context,
-    FieldSymbol field,
-    BoundExpression initializer
-)
+internal readonly struct BoundFieldInitializer(ParserRuleContext context, FieldSymbol field, BoundExpression expression)
 {
     public ParserRuleContext Context { get; } = context;
     public FieldSymbol Field { get; } = field;
-    public BoundExpression Value { get; } = initializer;
+    public BoundExpression Expression { get; } = expression;
 }
 
 internal sealed class BoundUnaryExpression : BoundExpression

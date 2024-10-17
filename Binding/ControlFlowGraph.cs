@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Ca21.Symbols;
 
 namespace Ca21.Binding;
@@ -63,8 +62,7 @@ internal sealed class ControlFlowGraph
         if (Statements.Length == OriginalBody.Statements.Length)
             return [];
 
-        var statementsAsArray = ImmutableCollectionsMarshal.AsArray(Statements)!;
-        var statementSet = new HashSet<BoundStatement>(statementsAsArray);
+        var statementSet = new HashSet<BoundStatement>(Statements.AsEnumerable());
         var unreachableStatementCount = OriginalBody.Statements.Length - statementSet.Count;
         var unreachableStatementsBuilder = new ArrayBuilder<BoundStatement>(unreachableStatementCount);
         foreach (var statement in OriginalBody.Statements)

@@ -14,19 +14,23 @@ internal interface IModuleMemberSymbol : ISymbol
 
 internal sealed class ModuleSymbol : Symbol
 {
-    public ModuleSymbol(ImmutableArray<CompilationUnitContext> roots, string name)
+    public ModuleSymbol(PackageSymbol package, string name, ImmutableArray<CompilationUnitContext> roots)
     {
-        Roots = roots;
+        Package = package;
         Name = name;
+        Roots = roots;
         Binder = new ModuleBinder(this);
     }
 
     public override SymbolKind SymbolKind => SymbolKind.Module;
     public override CompilationUnitContext Context => throw new InvalidOperationException();
+
     public override string Name { get; }
 
     public ImmutableArray<CompilationUnitContext> Roots { get; }
     public ModuleBinder Binder { get; }
+
+    public PackageSymbol Package { get; }
 
     private ImmutableArray<Diagnostic> _diagnostics;
     public ImmutableArray<Diagnostic> Diagnostics
@@ -37,6 +41,18 @@ internal sealed class ModuleSymbol : Symbol
                 InitializeProperties();
 
             return _diagnostics;
+        }
+    }
+
+    private FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleSymbol>>? _imports;
+    public FrozenDictionary<CompilationUnitContext, ImmutableArray<ModuleSymbol>> Imports
+    {
+        get
+        {
+            if (_imports == null)
+                InitializeProperties();
+
+            return _imports;
         }
     }
 
@@ -74,7 +90,7 @@ internal sealed class ModuleSymbol : Symbol
         }
     }
 
-    [MemberNotNull(nameof(_memberMap))]
+    [MemberNotNull(nameof(_memberMap), nameof(_imports))]
     private void InitializeProperties()
     {
         var diagnosticsBuilder = new DiagnosticList();
@@ -83,65 +99,97 @@ internal sealed class ModuleSymbol : Symbol
         foreach (var root in Roots)
             definitionCount += root._Definitions.Count;
 
+        var importsMapBuilder = new Dictionary<CompilationUnitContext, List<ModuleSymbol>>(Roots.Length);
         var memberMapBuilder = new Dictionary<string, IModuleMemberSymbol>(definitionCount);
         var membersBuilder = new ArrayBuilder<IModuleMemberSymbol>(definitionCount);
         foreach (var root in Roots)
         {
-            foreach (var definitionContext in root._Definitions)
-            {
-                switch (definitionContext)
-                {
-                    case TopLevelFunctionDefinitionContext { Function: var functionContext }:
-                    {
-                        var functionSymbol = new SourceFunctionSymbol(functionContext, this);
-                        membersBuilder.Add(functionSymbol);
-
-                        if (!memberMapBuilder.TryAdd(functionSymbol.Name, functionSymbol))
-                        {
-                            diagnosticsBuilder.Add(
-                                functionContext.Signature.Name,
-                                DiagnosticMessages.NameIsAlreadyDefined(functionSymbol)
-                            );
-                        }
-
-                        break;
-                    }
-                    case TopLevelStructureDefinitionContext { Structure: var structureContext }:
-                    {
-                        var structureSymbol = new StructureSymbol(structureContext, this);
-                        membersBuilder.Add(structureSymbol);
-
-                        if (!memberMapBuilder.TryAdd(structureSymbol.Name, structureSymbol))
-                        {
-                            diagnosticsBuilder.Add(
-                                structureContext.Name,
-                                DiagnosticMessages.NameIsAlreadyDefined(structureSymbol)
-                            );
-                        }
-
-                        break;
-                    }
-                    case TopLevelEnumerationDefinitionContext { Enumeration: var enumerationContext }:
-                    {
-                        var enumerationSymbol = new EnumerationSymbol(enumerationContext, this);
-                        membersBuilder.Add(enumerationSymbol);
-
-                        if (!memberMapBuilder.TryAdd(enumerationSymbol.Name, enumerationSymbol))
-                        {
-                            diagnosticsBuilder.Add(
-                                enumerationContext.Name,
-                                DiagnosticMessages.NameIsAlreadyDefined(enumerationSymbol)
-                            );
-                        }
-
-                        break;
-                    }
-                }
-            }
+            CreateDefinition(diagnosticsBuilder, memberMapBuilder, ref membersBuilder, importsMapBuilder, root);
         }
 
         _diagnostics = diagnosticsBuilder.GetImmutableArray();
+        _imports = importsMapBuilder.ToFrozenDictionary(pair => pair.Key, kvp => kvp.Value.ToImmutableArray());
         _members = membersBuilder.MoveToImmutable();
         _memberMap = memberMapBuilder.ToFrozenDictionary();
+    }
+
+    private void CreateDefinition(
+        DiagnosticList diagnostics,
+        Dictionary<string, IModuleMemberSymbol> memberMap,
+        ref ArrayBuilder<IModuleMemberSymbol> members,
+        Dictionary<CompilationUnitContext, List<ModuleSymbol>> importMap,
+        CompilationUnitContext root
+    )
+    {
+        foreach (var context in root._UseDirectives)
+        {
+            var path = context.Path.Text.Trim('"');
+            var module = Package.ModuleMap.GetValueOrDefault(path);
+            if (module == null)
+            {
+                diagnostics.Add(context.Path, DiagnosticMessages.ModuleNotFound(path));
+                continue;
+            }
+
+            if (!importMap.TryGetValue(root, out var imports))
+            {
+                imports = [];
+                importMap.Add(root, imports);
+            }
+
+            imports.Add(module);
+        }
+
+        foreach (var definitionContext in root._Definitions)
+        {
+            switch (definitionContext)
+            {
+                case TopLevelFunctionDefinitionContext { Function: var functionContext }:
+                {
+                    var functionSymbol = new SourceFunctionSymbol(functionContext, this);
+                    members.Add(functionSymbol);
+
+                    if (!memberMap.TryAdd(functionSymbol.Name, functionSymbol))
+                    {
+                        diagnostics.Add(
+                            functionContext.Signature.Name,
+                            DiagnosticMessages.NameIsAlreadyDefined(functionSymbol)
+                        );
+                    }
+
+                    break;
+                }
+                case TopLevelStructureDefinitionContext { Structure: var structureContext }:
+                {
+                    var structureSymbol = new StructureSymbol(structureContext, this);
+                    members.Add(structureSymbol);
+
+                    if (!memberMap.TryAdd(structureSymbol.Name, structureSymbol))
+                    {
+                        diagnostics.Add(
+                            structureContext.Name,
+                            DiagnosticMessages.NameIsAlreadyDefined(structureSymbol)
+                        );
+                    }
+
+                    break;
+                }
+                case TopLevelEnumerationDefinitionContext { Enumeration: var enumerationContext }:
+                {
+                    var enumerationSymbol = new EnumerationSymbol(enumerationContext, this);
+                    members.Add(enumerationSymbol);
+
+                    if (!memberMap.TryAdd(enumerationSymbol.Name, enumerationSymbol))
+                    {
+                        diagnostics.Add(
+                            enumerationContext.Name,
+                            DiagnosticMessages.NameIsAlreadyDefined(enumerationSymbol)
+                        );
+                    }
+
+                    break;
+                }
+            }
+        }
     }
 }

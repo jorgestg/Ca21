@@ -4,6 +4,8 @@ namespace Ca21.Diagnostics;
 
 internal static class DiagnosticMessages
 {
+    public static string ModuleNotFound(string name) => $"Module `{name}` not found";
+
     public static string TypeMismatch(TypeSymbol expected, TypeSymbol got) =>
         $"Type mismatch. Expected `{expected.Name}`, got `{got.Name}`";
 

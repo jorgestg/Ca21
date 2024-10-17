@@ -12,12 +12,12 @@ internal sealed class Compiler
     private readonly Dictionary<SourceFunctionSymbol, ControlFlowGraph> _bodiesBuilder = new();
     private readonly HashSet<string> _constantsBuilder = new();
 
-    private Compiler(ModuleSymbol moduleSymbol)
+    private Compiler(PackageSymbol package)
     {
-        ModuleSymbol = moduleSymbol;
+        Package = package;
     }
 
-    public ModuleSymbol ModuleSymbol { get; }
+    public PackageSymbol Package { get; }
 
     public ImmutableArray<Diagnostic> Diagnostics => _diagnosticsBuilder.GetImmutableArray();
 
@@ -28,24 +28,26 @@ internal sealed class Compiler
     private FrozenSet<string>? _constants;
     public FrozenSet<string> Constants => _constants ??= _constantsBuilder.ToFrozenSet();
 
-    public static Compiler Compile(ModuleSymbol moduleSymbol)
+    public static Compiler Compile(PackageSymbol packageSymbol)
     {
-        var compiler = new Compiler(moduleSymbol);
-        compiler.CompileModule();
+        var compiler = new Compiler(packageSymbol);
+        foreach (var module in packageSymbol.Modules)
+            compiler.CompileModule(module);
+
         return compiler;
     }
 
-    private void CompileModule()
+    private void CompileModule(ModuleSymbol moduleSymbol)
     {
-        _diagnosticsBuilder.AddRange(ModuleSymbol.Diagnostics);
+        _diagnosticsBuilder.AddRange(moduleSymbol.Diagnostics);
 
-        foreach (var structureSymbol in ModuleSymbol.GetMembers<StructureSymbol>())
+        foreach (var structureSymbol in moduleSymbol.GetMembers<StructureSymbol>())
             _diagnosticsBuilder.AddRange(structureSymbol.Diagnostics);
 
-        foreach (var enumerationSymbol in ModuleSymbol.GetMembers<EnumerationSymbol>())
+        foreach (var enumerationSymbol in moduleSymbol.GetMembers<EnumerationSymbol>())
             _diagnosticsBuilder.AddRange(enumerationSymbol.Diagnostics);
 
-        foreach (var functionSymbol in ModuleSymbol.GetMembers<SourceFunctionSymbol>())
+        foreach (var functionSymbol in moduleSymbol.GetMembers<SourceFunctionSymbol>())
             CompileFunction(functionSymbol);
     }
 
@@ -144,7 +146,7 @@ internal sealed class Compiler
     private void CompileStructureLiteralExpression(BoundStructureLiteralExpression expression)
     {
         foreach (var member in expression.FieldInitializers)
-            CompileExpression(member.Value);
+            CompileExpression(member.Expression);
     }
 
     private void CompileBinaryExpression(BoundBinaryExpression expression)

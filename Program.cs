@@ -1,21 +1,17 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
-using Antlr4.Runtime;
 using Ca21;
-using Ca21.Antlr;
 using Ca21.Backends;
 using Ca21.Symbols;
-using Ca21.Text;
-using static Ca21.Antlr.Ca21Parser;
 
 var rootCommand = new RootCommand("Ca21 Compiler CLI");
 
-var filesArgument = new Argument<IList<string>>("file", "The source file(s) to compile")
-{
-    Arity = ArgumentArity.OneOrMore
-};
+var directoryArgument = new Argument<string>("directory", "The directory to compile");
+rootCommand.AddArgument(directoryArgument);
 
-rootCommand.AddArgument(filesArgument);
+var packageName = new Option<string>("--package", "The package name");
+packageName.AddAlias("-pkg");
+rootCommand.AddOption(packageName);
 
 var outOption = new Option<string?>("--out", "The output filename");
 outOption.AddAlias("-o");
@@ -24,34 +20,25 @@ rootCommand.AddOption(outOption);
 var transpileOnlyOption = new Option<bool>("--transpile-only", "Just output C code");
 rootCommand.AddOption(transpileOnlyOption);
 
-rootCommand.SetHandler(Compile, filesArgument, outOption, transpileOnlyOption);
+rootCommand.SetHandler(Compile, directoryArgument, packageName, outOption, transpileOnlyOption);
 rootCommand.Invoke(args);
 
-static void Compile(IList<string> files, string? outputPath, bool transpileOnly)
+static void Compile(string directory, string? packageName, string? outputPath, bool transpileOnly)
 {
+    var directoryInfo = new DirectoryInfo(directory);
+    if (!directoryInfo.Exists)
+    {
+        WriteError($"Directory `{directory}` does not exist");
+        return;
+    }
+
     try
     {
-        var rootsBuilder = new ArrayBuilder<CompilationUnitContext>(files.Count);
-        foreach (var file in files)
-        {
-            var source = file == "-" ? Console.In.ReadToEnd() : File.ReadAllText(file);
-            var sourceText = new SourceText(file == "-" ? "stdin" : file, source.AsMemory());
-            var charStream = CharStreams.fromString(source);
-            SourceTextMap.Register(charStream, sourceText);
-
-            var parser = new Ca21Parser(new CommonTokenStream(new Ca21Lexer(charStream)));
-            var compilationUnit = parser.compilationUnit();
-            if (parser.NumberOfSyntaxErrors > 0)
-                continue;
-
-            rootsBuilder.Add(compilationUnit);
-        }
-
-        if (files.Count == 0)
+        var package = PackageSymbol.FromDirectory(directoryInfo, packageName);
+        if (package.Modules.Length == 0)
             return;
 
-        var module = new ModuleSymbol(rootsBuilder.MoveToImmutable(), "main");
-        var compiler = Compiler.Compile(module);
+        var compiler = Compiler.Compile(package);
         if (compiler.Diagnostics.Any())
         {
             Console.ForegroundColor = ConsoleColor.DarkRed;
@@ -84,7 +71,7 @@ static void Compile(IList<string> files, string? outputPath, bool transpileOnly)
             new ProcessStartInfo
             {
                 FileName = "cc",
-                Arguments = $"-x c -o {outputPath ?? Path.GetFileNameWithoutExtension(files.First())} -",
+                Arguments = $"-x c -o {outputPath ?? directoryInfo.Name} -",
                 RedirectStandardInput = true,
                 UseShellExecute = false
             }
@@ -92,9 +79,7 @@ static void Compile(IList<string> files, string? outputPath, bool transpileOnly)
 
         if (process == null)
         {
-            Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.Error.WriteLine("Failed to start cc");
-            Console.ResetColor();
+            WriteError("Failed to start `cc` process");
             return;
         }
 
@@ -103,7 +88,12 @@ static void Compile(IList<string> files, string? outputPath, bool transpileOnly)
     }
     catch (IOException e)
     {
-        Console.ForegroundColor = ConsoleColor.DarkRed;
-        Console.Error.WriteLine(e.Message);
+        WriteError(e.Message);
     }
+}
+
+static void WriteError(string message)
+{
+    Console.ForegroundColor = ConsoleColor.DarkRed;
+    Console.Error.WriteLine(message);
 }
